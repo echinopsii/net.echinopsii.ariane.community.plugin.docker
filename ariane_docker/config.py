@@ -89,6 +89,9 @@ class Config(object):
         else:
             raise exceptions.ArianeDockerConfigMandatorySectionMissingError('ariane_server')
 
+        if 'ariane_docker' in config:
+            self.docker_client_url = config['ariane_docker']['client_url']
+
         if ariane_server_missing_fields.__len__() > 0:
             raise exceptions.ArianeDockerConfigMandatoryFieldsMissingError(ariane_server_missing_fields)
 

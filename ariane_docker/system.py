@@ -21,10 +21,16 @@ __author__ = 'mffrench'
 
 LOGGER = logging.getLogger(__name__)
 
+class DockerContainerNSenter(object):
+    def __init__(self):
+        pass
+
+    def netstat(self):
+        #parse function here
+        pass
 
 class DockerImage(object):
     pass
-
 
 class DockerNetwork(object):
     def __init__(self, nid=None, driver=None, IPAM=None, name=None, options=None, scope=None,
@@ -37,6 +43,13 @@ class DockerNetwork(object):
         self.scope = scope
         self.containers_network=containers_network
 
+class DockerContainerProcess(object):
+    def __init__(self, pid=None, mdpid=None, mospid=None, mcmid=None, cdid=None):
+        self.pid = pid
+        self.mdpid = mdpid
+        self.mospid = mospid
+        self.cmid = mcmid
+        self.cdid = cdid
 
 class DockerContainer(object):
     def __init__(self, dcontainer_id=None, mcontainer_id=None, osi_id=None, environment_id=None, team_id=None,
@@ -52,7 +65,6 @@ class DockerContainer(object):
         self.tid = team_id
         self.details = None
         self.top = None
-
 
 class DockerHost(object):
     def __init__(self, host_container_id=None, host_osi_id=None, host_environment_id=None, host_team_id=None,

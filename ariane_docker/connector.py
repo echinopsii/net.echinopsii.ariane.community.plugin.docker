@@ -32,7 +32,7 @@ LOGGER = logging.getLogger(__name__)
 class DockerConnector(object):
 
     def __init__(self, docker_config):
-        self.cli = Client(base_url=docker_config)
+        self.cli = Client(base_url=docker_config.docker_client_url)
         pass
 
 

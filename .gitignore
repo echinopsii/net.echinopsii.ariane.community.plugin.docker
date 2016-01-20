@@ -1,0 +1,5 @@
+ariane_docker/__pycache__/
+tests/acceptance/__pycache__/
+tests/unit/__pycache__/
+ariane_docker.egg-info/
+dist/

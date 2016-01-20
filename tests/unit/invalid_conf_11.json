@@ -1,0 +1,12 @@
+{
+  "ariane_server": {
+    "rest_base_url": "",
+    "rest_user": "",
+    "rest_password": "",
+    "rbmq_host": "",
+    "rbmq_port": "",
+    "rbmq_user": "",
+    "rbmq_password": "",
+    "rbmq_vhost": ""
+  }
+}

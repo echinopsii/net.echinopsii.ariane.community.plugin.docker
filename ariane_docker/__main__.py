@@ -69,13 +69,13 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 from ariane_docker.connector import ArianeConnector
-from ariane_docker.gears import SystemGear
+#from ariane_docker.gears import SystemGear
 
 if ariane_docker_config is not None:
     ariane_connector = ArianeConnector(ariane_docker_config)
     if ariane_connector.ready:
         signal.signal(signal.SIGINT, shutdown_handle)
         signal.signal(signal.SIGTERM, shutdown_handle)
-        system_gear = SystemGear.start(config=ariane_docker_config).proxy()
+        #system_gear = SystemGear.start(config=ariane_docker_config).proxy()
         LOGGER.info("Ariane Docker@" + socket.gethostname() + " is started...")
         signal.pause()

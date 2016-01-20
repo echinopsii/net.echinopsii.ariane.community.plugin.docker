@@ -15,6 +15,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import copy
 import logging
 
 __author__ = 'mffrench'
@@ -53,33 +54,50 @@ class DockerContainerProcess(object):
 
 class DockerContainer(object):
     def __init__(self, dcontainer_id=None, mcontainer_id=None, osi_id=None, environment_id=None, team_id=None,
-                 details=None, top=None):
+                 nsenter_pid=None, details=None, top=None):
         #cli.containers()
         #cli.inspect_container(did)
         #cli.top(did)
         #nsenter subprocess 'netstat -i'
         self.did = dcontainer_id
+        self.nsented_pid = nsenter_pid
+        self.details = details
+        self.top = top
+
         self.mid = mcontainer_id
         self.oid = osi_id
         self.eid = environment_id
         self.tid = team_id
-        self.details = None
-        self.top = None
+
+    def __eq__(self, other):
+        return self.did == other.did
 
 class DockerHost(object):
-    def __init__(self, host_container_id=None, host_osi_id=None, host_environment_id=None, host_team_id=None,
-                 hostname=None):
+    def __init__(self, docker_cli,
+                 host_container_id=None, host_osi_id=None, host_environment_id=None, host_team_id=None,
+                 hostname=None, info=None, containers=None, last_containers=None, networks=None, last_networks=None):
+        self.cli = docker_cli
         self.host_container_id = host_container_id
+        self.hostname = hostname
+        self.info = info
+
         self.osi_id = host_osi_id
         self.environment_id = host_environment_id
         self.team_id = host_team_id
-        self.hostname = hostname if hostname is not None else "" #TODO cli.info().Name
+
+        self.containers = containers if containers is not None else []
+        self.last_containers = last_containers if last_containers is not None else []
+        self.new_containers = []
+
+        self.networks = networks if networks is not None else []
+        self.last_networks = last_networks if last_networks is not None else []
+        self.new_networks = []
 
     def __eq__(self, other):
-        pass
+        return self.hostname == other.hostname
 
     def __str__(self):
-        pass
+        return 'docker@' + self.hostname
 
     def need_directories_refresh(self):
         pass
@@ -92,7 +110,24 @@ class DockerHost(object):
         pass
 
     def update(self):
-        pass
+        self.last_containers = copy.deepcopy(self.containers)
+        self.last_networks = copy.deepcopy(self.networks)
+        self.sniff()
 
     def sniff(self):
-        pass
+        self.containers = []
+        self.networks = []
+        self.new_containers = []
+        self.new_networks = []
+
+        if self.info is None:
+            self.info = self.cli.info()
+            self.hostname = self.info['Name']
+
+        for container_dict in self.cli.containers():
+            c_did = container_dict['Id']
+            c_inspect = self.cli.inspect_container(c_did)
+            c_top = self.cli.top(c_did)
+            c_nsenterpid = c_inspect['State']['Pid']
+            pass
+

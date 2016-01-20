@@ -32,8 +32,19 @@ LOGGER = logging.getLogger(__name__)
 class DockerConnector(object):
 
     def __init__(self, docker_config):
+        self.ready = False
         self.cli = Client(base_url=docker_config.docker_client_url)
-        pass
+        no_error = True
+        try:
+            self.cli.info()
+        except Exception as e:
+            LOGGER.error("Problem while initializing docker connector on following url : " +
+                         docker_config.docker_client_url)
+            LOGGER.error(e.__str__())
+            no_error = False
+
+        if no_error:
+            self.ready = True
 
 
 class ArianeConnector(object):

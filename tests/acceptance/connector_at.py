@@ -20,4 +20,5 @@ class DockerConnectorTest(unittest.TestCase):
 
     def test_docker_host_sniff(self):
         docker_host = DockerHost(self.docker_connector.cli)
-        pprint(docker_host.sniff())
+        docker_host.sniff()
+        pprint(docker_host.to_json())

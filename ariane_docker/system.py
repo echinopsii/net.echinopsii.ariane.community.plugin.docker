@@ -17,18 +17,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import copy
 import logging
+import os
+import subprocess
+import tempfile
+from sys import platform as _platform
+from ariane_procos.system import MapSocket
+from nsenter import Namespace
 
 __author__ = 'mffrench'
 
 LOGGER = logging.getLogger(__name__)
-
-class DockerContainerNSenter(object):
-    def __init__(self):
-        pass
-
-    def netstat(self):
-        #parse function here
-        pass
 
 class DockerImage(object):
     pass
@@ -60,19 +58,25 @@ class DockerContainerProcess(object):
         self.dead_map_sockets = []
 
     def __eq__(self, other):
-        return self.pip == other.pid
+        return self.pid == other.pid
+
+    def to_json(self):
+        json_obj = {
+            'pid': self.pid
+        }
+        return json_obj
 
 class DockerContainer(object):
     def __init__(self, dcontainer_id=None, mcontainer_id=None, osi_id=None, environment_id=None, team_id=None,
-                 nsenter_pid=None, details=None, top=None, processs=None, last_processs=None):
+                 name=None, nsenter_pid=None, details=None, processs=None, last_processs=None):
         #cli.containers()
         #cli.inspect_container(did)
         #cli.top(did)
         #nsenter subprocess 'netstat -i'
         self.did = dcontainer_id
+        self.name = name
         self.nsented_pid = nsenter_pid
         self.details = details
-        self.top = top
 
         self.mid = mcontainer_id
         self.oid = osi_id
@@ -87,17 +91,107 @@ class DockerContainer(object):
         return self.did == other.did
 
     def to_json(self):
+        processs_2_json = []
+        for process in self.processs:
+            processs_2_json.append(process.to_json())
+        last_processs_2_json = []
+        for last_process in self.last_processs:
+            last_processs_2_json.append(last_process.to_json())
+        new_processs_2_json = []
+        for new_process in self.new_processs:
+            new_processs_2_json.append(new_process.to_json())
         json_obj = {
             'did': self.did,
+            'name': self.name,
             'nsenter_pid': self.nsented_pid,
             'details': self.details,
-            'top': self.top,
             'mid': self.mid,
             'oid': self.oid,
             'eid': self.eid,
-            'tid': self.tid
+            'tid': self.tid,
+            'processs': processs_2_json,
+            'last_processs': last_processs_2_json,
+            'new_processs': new_processs_2_json
         }
         return json_obj
+
+    def netstat(self):
+        ret = []
+        if os.geteuid() != 0:
+            LOGGER.warn("You need to have root privileges to sniff containers namespace.")
+        else:
+            if _platform == "linux" or _platform == "linux2":
+                with Namespace(self.nsented_pid, 'net'):
+                    bytes = subprocess.check_output(['netstat', '-a'])
+                tmpfilename = tempfile.tempdir + os.pathsep + self.did + '.tmp'
+                with open(tmpfilename, 'wb') as tmpfile:
+                    tmpfile.write(bytes)
+                    tmpfile.close()
+                with open(tmpfilename, 'r') as tmpfile:
+                    text = tmpfile.readlines()
+                    tmpfile.close()
+                os.remove(tmpfilename)
+                for line in text:
+                    if line.startswith('tcp') or line.startswith('tcp6') or \
+                       line.startswith('udp') or line.startswith('udp6'):
+                        fields = line.strip().split()
+
+                        protocol = fields[0]
+
+                        source_ep = fields[3]
+                        if protocol is 'tcp' or protocol is 'udp':
+                            source_ip = source_ep.split(':')[0]
+                            source_port = source_ep.split(':')[1]
+                        else:
+                            split = source_ep.split(':')
+                            split_array_length = split.__len__()
+                            source_port = split[split_array_length-1]
+                            source_ip = source_ep.split(':'+source_port)[0]
+
+                        state = fields[5]
+                        if state is not 'LISTEN' and state is not 'CLOSE' and state is not 'NONE':
+                            target_ep = fields[4]
+                            if protocol is 'tcp' or protocol is 'udp':
+                                target_ip = target_ep.split(':')[0]
+                                target_port = target_ep.split(':')[1]
+                            else:
+                                split = target_ep.split(':')
+                                split_array_length = split.__len__()
+                                target_port = split[split_array_length-1]
+                                target_ip = target_ep.split(':'+target_port)[0]
+                        else:
+                            target_ip = None
+                            target_port = None
+
+                        if protocol is 'tcp' or protocol is 'udp':
+                            family = 'AF_INET'
+                        else:
+                            family = 'AF_INET6'
+
+                        if protocol is 'tcp' or protocol is 'tcp6':
+                            type = 'SOCK_STREAM'
+                        else:
+                            type = 'SOCK_DGRAM'
+
+                        pid = fields[6].split('/')[0]
+
+                        ret.append({
+                            'pid': pid,
+                            'socket': MapSocket(source_ip=source_ip, source_port=source_port,
+                                                destination_ip=target_ip, destination_port=target_port,
+                                                status=state, family=family, rtype=type)
+                        })
+            else:
+                LOGGER.warn("Containers namespace sniff enabled on Linux only.")
+
+        return ret
+
+    def sniff(self):
+        for pid_socket in self.netstat():
+            for process in self.processs:
+                if process.pid == pid_socket['pid']:
+                    process.map_sockets.append(pid_socket['socket'])
+
 
 class DockerHost(object):
     def __init__(self, docker_cli,
@@ -133,6 +227,12 @@ class DockerHost(object):
         containers_2_json = []
         for container in self.containers:
             containers_2_json.append(container.to_json())
+        last_containers_2_json = []
+        for last_container in self.last_containers:
+            last_containers_2_json.append(last_container.to_json())
+        new_containers_2_json = []
+        for new_container in self.new_containers:
+            new_containers_2_json.append(new_container.to_json())
         json_obj = {
             'host_container_id': self.host_container_id,
             'hostname': self.hostname,
@@ -140,7 +240,9 @@ class DockerHost(object):
             'osi_id': self.osi_id,
             'environment_id': self.environment_id,
             'team_id': self.team_id,
-            'containers': containers_2_json
+            'containers': containers_2_json,
+            'last_containers': last_containers_2_json,
+            'new_containers': new_containers_2_json
         }
         return json_obj
 
@@ -166,11 +268,18 @@ class DockerHost(object):
         for container_dict in self.cli.containers():
             c_did = container_dict['Id']
             c_inspect = self.cli.inspect_container(c_did)
+            c_name = c_inspect['Name'].split('/')[1]
             c_nsenterpid = c_inspect['State']['Pid']
-            #loop on process list
             c_top = self.cli.top(c_did)
-            docker_container = DockerContainer(dcontainer_id=c_did, nsenter_pid=c_nsenterpid,
-                                               details=c_inspect, top=c_top)
+
+            c_process = []
+            for processTop in c_top['Processes']:
+                a_process = DockerContainerProcess(pid=processTop[1])
+                c_process.append(a_process)
+
+            docker_container = DockerContainer(dcontainer_id=c_did, name=c_name, nsenter_pid=c_nsenterpid,
+                                               processs=c_process, details=c_inspect)
+
             if docker_container in self.last_containers:
                 for last_container in self.last_containers:
                     if last_container == docker_container:
@@ -183,9 +292,11 @@ class DockerHost(object):
                             name = docker_container.did
                             LOGGER.debug('container not saved on DB on previous round: ' + name)
                             self.new_containers.append(docker_container)
-
+                        docker_container.last_processs = copy.deepcopy(last_container.last_processs)
                         break
 
             else:
                 self.new_containers.append(docker_container)
+
             self.containers.append(docker_container)
+            docker_container.sniff()

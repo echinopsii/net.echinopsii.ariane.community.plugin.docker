@@ -32,15 +32,33 @@ class DockerImage(object):
     pass
 
 class DockerNetwork(object):
-    def __init__(self, nid=None, driver=None, IPAM=None, name=None, options=None, scope=None,
-                 containers_network=None):
+    def __init__(self, nid=None, driver=None, IPAM=None, name=None, bridge_name=None,
+                 nic=None, options=None, scope=None, containers_network=None):
         self.nid = nid
         self.driver = driver
         self.IPAM = IPAM
         self.name = name
+        self.bridge_name = bridge_name
         self.options = options
         self.scope = scope
-        self.containers_network=containers_network
+        self.containers_network = containers_network
+        self.nic = nic
+
+    def __eq__(self, other):
+        return self.nid == other.nid
+
+    def to_json(self):
+        json_obj = {
+            'nid': self.nid,
+            'driver': self.driver,
+            'IPAM': self.IPAM,
+            'name': self.name,
+            'bridge_name': self.bridge_name,
+            'options': self.options,
+            'scope': self.scope,
+            'containers_network': self.containers_network
+        }
+        return json_obj
 
 class DockerContainerProcess(object):
     def __init__(self, pid=None, mdpid=None, mospid=None, mcmid=None, cdid=None,
@@ -61,8 +79,28 @@ class DockerContainerProcess(object):
         return self.pid == other.pid
 
     def to_json(self):
+        map_socket_2_json = []
+        for map_socket in self.map_sockets:
+            map_socket_2_json.append(map_socket.to_json())
+        last_map_socket_2_json = []
+        for last_map_socket in self.last_map_sockets:
+            last_map_socket_2_json.append(last_map_socket.to_json())
+        new_map_socket_2_json = []
+        for new_map_socket in self.new_map_sockets:
+            new_map_socket_2_json.append(new_map_socket.to_json())
+        dead_map_socket_2_json = []
+        for dead_map_socket in self.new_map_sockets:
+            dead_map_socket_2_json.append(dead_map_socket.to_json())
         json_obj = {
-            'pid': self.pid
+            'pid': self.pid,
+            'mdpid': self.mdpid,
+            'mospid': self.mospid,
+            'cmid': self.cmid,
+            'cdid': self.cdid,
+            'map_sockets': map_socket_2_json,
+            'last_map_sockets': last_map_socket_2_json,
+            'new_map_sockets': new_map_socket_2_json,
+            'dead_map_sockets': dead_map_socket_2_json
         }
         return json_obj
 
@@ -104,7 +142,6 @@ class DockerContainer(object):
             'did': self.did,
             'name': self.name,
             'nsenter_pid': self.nsented_pid,
-            'details': self.details,
             'mid': self.mid,
             'oid': self.oid,
             'eid': self.eid,
@@ -118,12 +155,12 @@ class DockerContainer(object):
     def netstat(self):
         ret = []
         if os.geteuid() != 0:
-            LOGGER.warn("You need to have root privileges to sniff containers namespace.")
+            LOGGER.warning("You need to have root privileges to sniff containers namespace.")
         else:
             if _platform == "linux" or _platform == "linux2":
                 with Namespace(self.nsented_pid, 'net'):
-                    bytes = subprocess.check_output(['netstat', '-a'])
-                tmpfilename = tempfile.tempdir + os.pathsep + self.did + '.tmp'
+                    bytes = subprocess.check_output(['netstat', '-a', '-p', '-n'])
+                tmpfilename = tempfile.gettempdir() + os.sep + self.did + '.tmp'
                 with open(tmpfilename, 'wb') as tmpfile:
                     tmpfile.write(bytes)
                     tmpfile.close()
@@ -135,9 +172,7 @@ class DockerContainer(object):
                     if line.startswith('tcp') or line.startswith('tcp6') or \
                        line.startswith('udp') or line.startswith('udp6'):
                         fields = line.strip().split()
-
                         protocol = fields[0]
-
                         source_ep = fields[3]
                         if protocol is 'tcp' or protocol is 'udp':
                             source_ip = source_ep.split(':')[0]
@@ -147,7 +182,6 @@ class DockerContainer(object):
                             split_array_length = split.__len__()
                             source_port = split[split_array_length-1]
                             source_ip = source_ep.split(':'+source_port)[0]
-
                         state = fields[5]
                         if state is not 'LISTEN' and state is not 'CLOSE' and state is not 'NONE':
                             target_ep = fields[4]
@@ -162,19 +196,15 @@ class DockerContainer(object):
                         else:
                             target_ip = None
                             target_port = None
-
                         if protocol is 'tcp' or protocol is 'udp':
                             family = 'AF_INET'
                         else:
                             family = 'AF_INET6'
-
                         if protocol is 'tcp' or protocol is 'tcp6':
                             type = 'SOCK_STREAM'
                         else:
                             type = 'SOCK_DGRAM'
-
                         pid = fields[6].split('/')[0]
-
                         ret.append({
                             'pid': pid,
                             'socket': MapSocket(source_ip=source_ip, source_port=source_port,
@@ -182,22 +212,36 @@ class DockerContainer(object):
                                                 status=state, family=family, rtype=type)
                         })
             else:
-                LOGGER.warn("Containers namespace sniff enabled on Linux only.")
+                LOGGER.warning("Containers namespace sniff enabled on Linux only.")
 
         return ret
 
-    def sniff(self):
-        for pid_socket in self.netstat():
-            for process in self.processs:
-                if process.pid == pid_socket['pid']:
-                    process.map_sockets.append(pid_socket['socket'])
+    def update(self, cli):
+        self.last_processs = copy.deepcopy(self.processs)
+        self.sniff(cli)
+
+    def sniff(self, cli):
+        self.processs = []
+        self.new_processs = []
+
+        c_netstat =  self.netstat()
+        c_top = cli.top(self.did)
+
+        for processTop in c_top['Processes']:
+            a_process = DockerContainerProcess(pid=processTop[1])
+            for pid_socket in c_netstat:
+                if pid_socket['pid'] == a_process.pid:
+                    a_process.map_sockets.append(pid_socket['socket'])
+            if a_process in self.last_processs:
+                pass
+            else:
+                self.new_processs.append(a_process)
+            self.processs.append(a_process)
 
 
 class DockerHost(object):
-    def __init__(self, docker_cli,
-                 host_container_id=None, host_osi_id=None, host_environment_id=None, host_team_id=None,
+    def __init__(self, host_container_id=None, host_osi_id=None, host_environment_id=None, host_team_id=None,
                  hostname=None, info=None, containers=None, last_containers=None, networks=None, last_networks=None):
-        self.cli = docker_cli
         self.hostname = hostname
         self.info = info
 
@@ -233,6 +277,15 @@ class DockerHost(object):
         new_containers_2_json = []
         for new_container in self.new_containers:
             new_containers_2_json.append(new_container.to_json())
+        networks_2_json = []
+        for network in self.networks:
+            networks_2_json.append(network.to_json())
+        last_networks_2_json = []
+        for last_network in self.last_networks:
+            last_networks_2_json.append(last_network.to_json())
+        new_networks_2_json = []
+        for new_network in self.new_networks:
+            new_networks_2_json.append(new_network.to_json())
         json_obj = {
             'host_container_id': self.host_container_id,
             'hostname': self.hostname,
@@ -242,7 +295,10 @@ class DockerHost(object):
             'team_id': self.team_id,
             'containers': containers_2_json,
             'last_containers': last_containers_2_json,
-            'new_containers': new_containers_2_json
+            'new_containers': new_containers_2_json,
+            'networks': networks_2_json,
+            'last_networks': last_networks_2_json,
+            'new_networks': new_networks_2_json
         }
         return json_obj
 
@@ -250,35 +306,49 @@ class DockerHost(object):
     def from_json(json_obj):
         pass
 
-    def update(self):
+    def update(self, cli):
         self.last_containers = copy.deepcopy(self.containers)
         self.last_networks = copy.deepcopy(self.networks)
-        self.sniff()
+        self.sniff(cli)
 
-    def sniff(self):
+    def sniff(self, cli):
         self.containers = []
         self.networks = []
         self.new_containers = []
         self.new_networks = []
 
         if self.info is None:
-            self.info = self.cli.info()
+            self.info = cli.info()
             self.hostname = self.info['Name']
 
-        for container_dict in self.cli.containers():
+        for network in cli.networks():
+            bridge_name = \
+                network['Options']['com.docker.network.bridge.name'] if 'com.docker.network.bridge.name' in network['Options'] is not None else None
+            docker_network = DockerNetwork(
+                nid=network['Id'],
+                driver=network['Driver'],
+                name=network['Name'],
+                IPAM=network['IPAM'],
+                options=network['Options'],
+                bridge_name=bridge_name,
+                scope=network['Scope'],
+                containers_network=network['Containers']
+            )
+            if docker_network in self.last_networks:
+                #TODO
+                pass
+            else:
+                self.new_networks.append(docker_network)
+            self.networks.append(docker_network)
+
+        for container_dict in cli.containers():
             c_did = container_dict['Id']
-            c_inspect = self.cli.inspect_container(c_did)
+            c_inspect = cli.inspect_container(c_did)
             c_name = c_inspect['Name'].split('/')[1]
             c_nsenterpid = c_inspect['State']['Pid']
-            c_top = self.cli.top(c_did)
-
-            c_process = []
-            for processTop in c_top['Processes']:
-                a_process = DockerContainerProcess(pid=processTop[1])
-                c_process.append(a_process)
 
             docker_container = DockerContainer(dcontainer_id=c_did, name=c_name, nsenter_pid=c_nsenterpid,
-                                               processs=c_process, details=c_inspect)
+                                               details=c_inspect)
 
             if docker_container in self.last_containers:
                 for last_container in self.last_containers:
@@ -292,11 +362,11 @@ class DockerHost(object):
                             name = docker_container.did
                             LOGGER.debug('container not saved on DB on previous round: ' + name)
                             self.new_containers.append(docker_container)
-                        docker_container.last_processs = copy.deepcopy(last_container.last_processs)
+                        docker_container.processs = copy.deepcopy(last_container.processs)
                         break
 
             else:
                 self.new_containers.append(docker_container)
 
             self.containers.append(docker_container)
-            docker_container.sniff()
+            docker_container.update(cli)

@@ -1,3 +1,4 @@
+import os
 import unittest
 from config import Config
 from ariane_docker import exceptions
@@ -8,7 +9,7 @@ class ConfigurationTest(unittest.TestCase):
 
     def test_bad_conf_file(self):
         try:
-            Config().parse("some_unknown_file")
+            Config().parse(os.path.dirname(__file__) + os.sep + "some_unknown_file")
         except exceptions.ArianeDockerConfigFileError:
             pass
         except Exception as e:
@@ -18,7 +19,7 @@ class ConfigurationTest(unittest.TestCase):
 
     def test_ariane_good_conf_01(self):
         try:
-            config = Config().parse("valid_conf_01.json")
+            config = Config().parse(os.path.dirname(__file__) + os.sep + "valid_conf_01.json")
         except Exception as e:
             self.fail('unexpected exception thrown: ' + str(e))
         else:
@@ -26,7 +27,7 @@ class ConfigurationTest(unittest.TestCase):
 
     def test_ariane_good_conf_02(self):
         try:
-            config = Config().parse("valid_conf_02.json")
+            config = Config().parse(os.path.dirname(__file__) + os.sep + "valid_conf_02.json")
         except Exception as e:
             self.fail('unexpected exception thrown: ' + str(e))
         else:
@@ -34,7 +35,7 @@ class ConfigurationTest(unittest.TestCase):
 
     def test_ariane_server_not_in_conf_file(self):
         try:
-            Config().parse("invalid_conf_10.json")
+            Config().parse(os.path.dirname(__file__) + os.sep + "invalid_conf_10.json")
         except exceptions.ArianeDockerConfigMandatorySectionMissingError:
             pass
         except Exception as e:
@@ -44,7 +45,7 @@ class ConfigurationTest(unittest.TestCase):
 
     def test_ariane_server_missing_mandatory_fields(self):
         try:
-            Config().parse("invalid_conf_11.json")
+            Config().parse(os.path.dirname(__file__) + os.sep + "invalid_conf_11.json")
         except exceptions.ArianeDockerConfigMandatoryFieldsMissingError:
             pass
         except Exception as e:
@@ -53,7 +54,7 @@ class ConfigurationTest(unittest.TestCase):
             self.fail('no exception thrown')
 
         try:
-            Config().parse("invalid_conf_12.json")
+            Config().parse(os.path.dirname(__file__) + os.sep + "invalid_conf_12.json")
         except exceptions.ArianeDockerConfigMandatoryFieldsMissingError:
             pass
         except Exception as e:

@@ -60,6 +60,20 @@ class DockerNetwork(object):
         }
         return json_obj
 
+    @staticmethod
+    def from_json(json_obj):
+        return DockerNetwork(
+            nid=json_obj['nid'] if json_obj['nid'] else None,
+            driver=json_obj['driver'] if json_obj['driver'] else None,
+            IPAM=json_obj['IPAM'] if json_obj['IPAM'] else None,
+            name=json_obj['name'] if json_obj['name'] else None,
+            bridge_name=json_obj['bridge_name'] if json_obj['bridge_name'] else None,
+            nic=json_obj['nic'] if json_obj['nic'] else None,
+            options=json_obj['options'] if json_obj['options'] else None,
+            scope=json_obj['scope'] if json_obj['scope'] else None,
+            containers_network=json_obj['containers_network'] if json_obj['containers_network'] else None
+        )
+
 class DockerContainerProcess(object):
     def __init__(self, pid=None, mdpid=None, mospid=None, mcmid=None, cdid=None,
                  map_sockets=None, last_map_sockets=None):
@@ -85,12 +99,6 @@ class DockerContainerProcess(object):
         last_map_socket_2_json = []
         for last_map_socket in self.last_map_sockets:
             last_map_socket_2_json.append(last_map_socket.to_json())
-        new_map_socket_2_json = []
-        for new_map_socket in self.new_map_sockets:
-            new_map_socket_2_json.append(new_map_socket.to_json())
-        dead_map_socket_2_json = []
-        for dead_map_socket in self.new_map_sockets:
-            dead_map_socket_2_json.append(dead_map_socket.to_json())
         json_obj = {
             'pid': self.pid,
             'mdpid': self.mdpid,
@@ -98,11 +106,30 @@ class DockerContainerProcess(object):
             'cmid': self.cmid,
             'cdid': self.cdid,
             'map_sockets': map_socket_2_json,
-            'last_map_sockets': last_map_socket_2_json,
-            'new_map_sockets': new_map_socket_2_json,
-            'dead_map_sockets': dead_map_socket_2_json
+            'last_map_sockets': last_map_socket_2_json
         }
         return json_obj
+
+    @staticmethod
+    def from_json(json_obj):
+        map_sockets_json = json_obj['map_sockets'] if json_obj['map_sockets'] else []
+        map_sockets = []
+        for map_socket_json in map_sockets_json:
+            map_sockets.append(MapSocket.to_json(map_socket_json))
+            map_sockets_json = json_obj['map_sockets']
+        last_map_sockets_json = json_obj['last_map_sockets'] if json_obj['last_map_sockets'] else []
+        last_map_sockets = []
+        for last_map_socket_json in last_map_sockets_json:
+            last_map_sockets.append(MapSocket.to_json(last_map_socket_json))
+        return DockerContainerProcess(
+            pid=json_obj['pid'] if json_obj['pid'] else None,
+            mdpid=json_obj['mdpid'] if json_obj['mdpid'] else None,
+            mospid=json_obj['mospid'] if json_obj['modpid'] else None,
+            mcmid=json_obj['cmid'] if json_obj['cmid'] else None,
+            cdid=json_obj['cdid'] if json_obj['cdid'] else None,
+            map_sockets=map_sockets,
+            last_map_sockets=last_map_sockets
+        )
 
 class DockerContainer(object):
     def __init__(self, dcontainer_id=None, mcontainer_id=None, osi_id=None, environment_id=None, team_id=None,
@@ -135,22 +162,42 @@ class DockerContainer(object):
         last_processs_2_json = []
         for last_process in self.last_processs:
             last_processs_2_json.append(last_process.to_json())
-        new_processs_2_json = []
-        for new_process in self.new_processs:
-            new_processs_2_json.append(new_process.to_json())
         json_obj = {
             'did': self.did,
             'name': self.name,
+            'details': self.details,
             'nsenter_pid': self.nsented_pid,
             'mid': self.mid,
             'oid': self.oid,
             'eid': self.eid,
             'tid': self.tid,
             'processs': processs_2_json,
-            'last_processs': last_processs_2_json,
-            'new_processs': new_processs_2_json
+            'last_processs': last_processs_2_json
         }
         return json_obj
+
+    @staticmethod
+    def from_json(json_obj):
+        processs_json = json_obj['processs'] if json_obj['processs'] else[]
+        processs = []
+        for process_json in processs_json:
+            processs.append(DockerContainerProcess.from_json(process_json))
+        last_processs_json = json_obj['last_processs'] if json_obj['last_processs'] else[]
+        last_processs = []
+        for last_process_json in last_processs_json:
+            last_processs.append(DockerContainerProcess.from_json(last_process_json))
+        return DockerContainer(
+            dcontainer_id=json_obj['did'] if json_obj['did'] else None,
+            mcontainer_id=json_obj['mid'] if json_obj['mid'] else None,
+            osi_id=json_obj['oid'] if json_obj['oid'] else None,
+            environment_id=json_obj['eid'] if json_obj['eid'] else None,
+            team_id=json_obj['tid'] if json_obj['tid'] else None,
+            name=json_obj['name'] if json_obj['name'] else None,
+            details=json_obj['details'] if json_obj['details'] else None,
+            nsenter_pid=json_obj['nsenter_pid'] if json_obj['nsenter_pid'] else None,
+            processs=processs,
+            last_processs=last_processs
+        )
 
     def netstat(self):
         ret = []
@@ -274,18 +321,12 @@ class DockerHost(object):
         last_containers_2_json = []
         for last_container in self.last_containers:
             last_containers_2_json.append(last_container.to_json())
-        new_containers_2_json = []
-        for new_container in self.new_containers:
-            new_containers_2_json.append(new_container.to_json())
         networks_2_json = []
         for network in self.networks:
             networks_2_json.append(network.to_json())
         last_networks_2_json = []
         for last_network in self.last_networks:
             last_networks_2_json.append(last_network.to_json())
-        new_networks_2_json = []
-        for new_network in self.new_networks:
-            new_networks_2_json.append(new_network.to_json())
         json_obj = {
             'host_container_id': self.host_container_id,
             'hostname': self.hostname,
@@ -295,16 +336,43 @@ class DockerHost(object):
             'team_id': self.team_id,
             'containers': containers_2_json,
             'last_containers': last_containers_2_json,
-            'new_containers': new_containers_2_json,
             'networks': networks_2_json,
             'last_networks': last_networks_2_json,
-            'new_networks': new_networks_2_json
         }
         return json_obj
 
     @staticmethod
     def from_json(json_obj):
-        pass
+        containers_json = json_obj['containers'] if json_obj['containers'] else []
+        containers = []
+        for container_json in containers_json:
+            containers.append(DockerContainer.from_json(container_json))
+        last_containers_json = json_obj['last_containers'] if json_obj['last_containers'] else []
+        last_containers = []
+        for last_container_json in last_containers_json:
+            last_containers.append(DockerContainer.from_json(last_container_json))
+
+        networks_json = json_obj['networks'] if json_obj['networks'] else []
+        networks = []
+        for network_json in networks_json:
+            networks.append(DockerNetwork.from_json(network_json))
+        last_networks_json = json_obj['last_networks'] if json_obj['last_networks'] else []
+        last_networks = []
+        for last_network_json in last_networks_json:
+            last_networks.append(DockerNetwork.from_json(last_network_json))
+
+        return DockerHost(
+            host_container_id=json_obj['host_container_id'] if json_obj['host_container_id'] else None,
+            host_osi_id=json_obj['host_osi_id'] if json_obj['host_osi_id'] else None,
+            host_environment_id=json_obj['host_environment_id'] if json_obj['host_environment_id'] else None,
+            host_team_id=json_obj['host_team_id'] if json_obj['host_team_id'] else None,
+            hostname=json_obj['hostname'] if json_obj['hostname'] else None,
+            info=json_obj['info'] if json_obj['info'] else None,
+            containers=containers,
+            last_containers=last_containers,
+            networks=networks,
+            last_networks=last_networks
+        )
 
     def update(self, cli):
         self.last_containers = copy.deepcopy(self.containers)

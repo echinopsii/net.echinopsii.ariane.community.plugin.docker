@@ -78,7 +78,7 @@ class DockerGear(InjectorGearSkeleton):
     config = None
     hostname = None
 
-    def __init__(self, config):
+    def __init__(self, config, cli):
         DockerGear.hostname = socket.gethostname()
         DockerGear.config = config
         super(DockerGear, self).__init__(
@@ -94,6 +94,7 @@ class DockerGear(InjectorGearSkeleton):
         self.component = DockerComponent.start(
             attached_gear_id=self.gear_id(),
             hostname=DockerGear.hostname,
+            docker_cli=cli,
             docker_gear_actor_ref=self.actor_ref
         ).proxy()
         self.directory_gear = DirectoryGear.start().proxy()

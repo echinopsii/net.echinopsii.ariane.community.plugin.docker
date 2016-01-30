@@ -287,15 +287,14 @@ class DockerContainer(object):
 
 
 class DockerHost(object):
-    def __init__(self, host_container_id=None, host_osi_id=None, host_environment_id=None, host_team_id=None,
+    def __init__(self, host_container_id=None, host_osi_id=None, host_lra_id=None,
                  hostname=None, info=None, containers=None, last_containers=None, networks=None, last_networks=None):
         self.hostname = hostname
         self.info = info
 
         self.host_container_id = host_container_id
         self.osi_id = host_osi_id
-        self.environment_id = host_environment_id
-        self.team_id = host_team_id
+        self.lra_id = host_lra_id
 
         self.containers = containers if containers is not None else []
         self.last_containers = last_containers if last_containers is not None else []
@@ -332,8 +331,7 @@ class DockerHost(object):
             'hostname': self.hostname,
             'info': self.info,
             'osi_id': self.osi_id,
-            'environment_id': self.environment_id,
-            'team_id': self.team_id,
+            'lra_id': self.lra_id,
             'containers': containers_2_json,
             'last_containers': last_containers_2_json,
             'networks': networks_2_json,
@@ -364,8 +362,7 @@ class DockerHost(object):
         return DockerHost(
             host_container_id=json_obj['host_container_id'] if json_obj['host_container_id'] else None,
             host_osi_id=json_obj['host_osi_id'] if json_obj['host_osi_id'] else None,
-            host_environment_id=json_obj['host_environment_id'] if json_obj['host_environment_id'] else None,
-            host_team_id=json_obj['host_team_id'] if json_obj['host_team_id'] else None,
+            host_lra_id=json_obj['host_lra_id'] if json_obj['host_lra_id'] else None,
             hostname=json_obj['hostname'] if json_obj['hostname'] else None,
             info=json_obj['info'] if json_obj['info'] else None,
             containers=containers,

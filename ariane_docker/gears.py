@@ -188,6 +188,19 @@ class DirectoryGear(InjectorGearSkeleton):
                 osi_from_ariane.save()
             docker_container.oid = osi_from_ariane.id
 
+        for docker_container in docker_host.containers:
+            if docker_container not in docker_host.last_containers:
+                if docker_container.oid is not None:
+                    osi_from_ariane = OSInstanceService.find_os_instance(
+                        osi_id=docker_container.oid
+                    )
+                else:
+                    osi_from_ariane = OSInstanceService.find_os_instance(
+                        osi_name=docker_container.name + '.' + DockerHostGear.hostname
+                    )
+                if osi_from_ariane is not None:
+                    osi_from_ariane.remove()
+
     def update_ariane_directories(self, docker_host):
         if docker_host.networks != docker_host.last_networks:
             self.sync_docker_networks(docker_host)

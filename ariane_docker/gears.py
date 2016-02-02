@@ -24,7 +24,7 @@ from ariane_clip3.directory import OSInstanceService, RoutingAreaService, Subnet
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
-from ariane_clip3.mapping import ContainerService
+from ariane_clip3.mapping import ContainerService, Container
 from components import DockerComponent
 from system import DockerContainer
 
@@ -104,7 +104,7 @@ class DirectoryGear(InjectorGearSkeleton):
     def sync_docker_networks(docker_host):
         # CREATION AND REMOVAL OF DOCKER NETWORK ARE DONE BY ARIANE PROCOS PLUGIN
         for docker_network in docker_host.networks:
-            if docker_network.nic_id is None and docker_network.bridge_name is not None:
+            if docker_network in docker_host.new_networks and docker_network.bridge_name is not None:
                 #SYNC NIC HOLDING THE SUBNET BRIDGE
                 nic_name = docker_network.bridge_name + '.' + DockerHostGear.hostname
                 nic = NICardService.find_niCard(nic_name=nic_name)
@@ -124,80 +124,86 @@ class DirectoryGear(InjectorGearSkeleton):
 
     @staticmethod
     def sync_docker_containers(docker_host):
-        for docker_container in docker_host.new_containers:
-            team_from_conf = docker_container.extract_team_from_env_vars()
-            if team_from_conf is not None:
-                team_from_ariane = TeamService.find_team(team_name=team_from_conf[DockerContainer.ariane_team_name])
-                if team_from_ariane is None:
-                    team_from_ariane = Team(
-                        name=team_from_conf[DockerContainer.ariane_team_name],
-                        color_code=team_from_conf[DockerContainer.ariane_team_cc],
-                        description=team_from_conf[DockerContainer.ariane_team_desc]
-                    )
-                    team_from_ariane.save()
-                docker_container.tid = team_from_ariane.id
-            else:
-                LOGGER.warning("Team is not specified in the docker container ( " + docker_container.name +
-                               " ) environment variables !")
-
-            env_from_conf = docker_container.extract_env_from_env_vars()
-            if env_from_conf is not None:
-                env_from_ariane = EnvironmentService.find_environment(
-                    env_name=env_from_conf[DockerContainer.ariane_environment_name]
-                )
-                if env_from_ariane is None:
-                    env_from_ariane = Environment(
-                        name=env_from_conf[DockerContainer.ariane_environment_name],
-                        color_code=env_from_conf[DockerContainer.ariane_environment_cc],
-                        description=env_from_conf[DockerContainer.ariane_environment_desc]
-                    )
-                    env_from_ariane.save()
-                docker_container.eid = env_from_ariane.id
-            else:
-                LOGGER.warning("Environment is not specified in the docker container ( " + docker_container.name +
-                               " ) environment variables !")
-
-            ost_from_conf = docker_container.extract_os_type_from_env_vars()
-            if ost_from_conf is not None:
-                ost_from_ariane = OSTypeService.find_ostype(ost_name=ost_from_conf[DockerContainer.ariane_ost_name])
-                if ost_from_ariane is None:
-                    cmp_from_ariane = CompanyService.find_company(
-                        cmp_name=ost_from_conf[DockerContainer.ariane_ost_scmp_name]
-                    )
-                    if cmp_from_ariane is None:
-                        cmp_from_ariane = Company(
-                            name=ost_from_conf[DockerContainer.ariane_ost_scmp_name],
-                            description=ost_from_conf[DockerContainer.ariane_ost_scmp_desc]
+        for docker_container in docker_host.containers:
+            if docker_container in docker_host.new_containers:
+                team_from_conf = docker_container.extract_team_from_env_vars()
+                if team_from_conf is not None:
+                    team_from_ariane = TeamService.find_team(team_name=team_from_conf[DockerContainer.ariane_team_name])
+                    if team_from_ariane is None:
+                        team_from_ariane = Team(
+                            name=team_from_conf[DockerContainer.ariane_team_name],
+                            color_code=team_from_conf[DockerContainer.ariane_team_cc],
+                            description=team_from_conf[DockerContainer.ariane_team_desc]
                         )
-                        cmp_from_ariane.save()
-                    ost_from_ariane = OSType(
-                        name=ost_from_conf[DockerContainer.ariane_ost_name],
-                        architecture=ost_from_conf[DockerContainer.ariane_ost_arc],
-                        os_type_company_id=cmp_from_ariane.id
-                    )
-                    ost_from_ariane.save()
-            else:
-                LOGGER.warning("OS Type is not specified in the docker container ( " + docker_container.name +
-                               " ) environment variables !")
+                        team_from_ariane.save()
+                    docker_container.team = team_from_ariane
+                    docker_container.tid = team_from_ariane.id
+                else:
+                    LOGGER.warning("Team is not specified in the docker container ( " + docker_container.name +
+                                   " ) environment variables !")
 
-            osi_from_ariane = OSInstanceService.find_os_instance(
-                osi_name=docker_container.name + '.' + DockerHostGear.hostname
-            )
-            if osi_from_ariane is None:
-                env_ids = [docker_container.eid] if docker_container.eid is not None else None
-                team_ids = [docker_container.tid] if docker_container.tid is not None else None
-                osi_from_ariane = OSInstance(
-                    name=docker_container.name + '.' + DockerHostGear.hostname,
-                    description=docker_container.name + '@' + DockerHostGear.hostname,
-                    admin_gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                                   docker_container.name + ' /bin/bash]',
-                    osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
-                    osi_ost_id=docker_container.ostid,
-                    osi_environment_ids=env_ids,
-                    osi_team_ids=team_ids
+                env_from_conf = docker_container.extract_env_from_env_vars()
+                if env_from_conf is not None:
+                    env_from_ariane = EnvironmentService.find_environment(
+                        env_name=env_from_conf[DockerContainer.ariane_environment_name]
+                    )
+                    if env_from_ariane is None:
+                        env_from_ariane = Environment(
+                            name=env_from_conf[DockerContainer.ariane_environment_name],
+                            color_code=env_from_conf[DockerContainer.ariane_environment_cc],
+                            description=env_from_conf[DockerContainer.ariane_environment_desc]
+                        )
+                        env_from_ariane.save()
+                    docker_container.environment = env_from_ariane
+                    docker_container.eid = env_from_ariane.id
+                else:
+                    LOGGER.warning("Environment is not specified in the docker container ( " + docker_container.name +
+                                   " ) environment variables !")
+
+                ost_from_conf = docker_container.extract_os_type_from_env_vars()
+                if ost_from_conf is not None:
+                    ost_from_ariane = OSTypeService.find_ostype(ost_name=ost_from_conf[DockerContainer.ariane_ost_name])
+                    if ost_from_ariane is None:
+                        cmp_from_ariane = CompanyService.find_company(
+                            cmp_name=ost_from_conf[DockerContainer.ariane_ost_scmp_name]
+                        )
+                        if cmp_from_ariane is None:
+                            cmp_from_ariane = Company(
+                                name=ost_from_conf[DockerContainer.ariane_ost_scmp_name],
+                                description=ost_from_conf[DockerContainer.ariane_ost_scmp_desc]
+                            )
+                            cmp_from_ariane.save()
+                        ost_from_ariane = OSType(
+                            name=ost_from_conf[DockerContainer.ariane_ost_name],
+                            architecture=ost_from_conf[DockerContainer.ariane_ost_arc],
+                            os_type_company_id=cmp_from_ariane.id
+                        )
+                        ost_from_ariane.save()
+                    docker_container.ostid = ost_from_ariane.id
+                    docker_container.ost = ost_from_ariane
+                else:
+                    LOGGER.warning("OS Type is not specified in the docker container ( " + docker_container.name +
+                                   " ) environment variables !")
+
+                osi_from_ariane = OSInstanceService.find_os_instance(
+                    osi_name=docker_container.name + '.' + DockerHostGear.hostname
                 )
-                osi_from_ariane.save()
-            docker_container.oid = osi_from_ariane.id
+                if osi_from_ariane is None:
+                    env_ids = [docker_container.eid] if docker_container.eid is not None else None
+                    team_ids = [docker_container.tid] if docker_container.tid is not None else None
+                    osi_from_ariane = OSInstance(
+                        name=docker_container.name + '.' + DockerHostGear.hostname,
+                        description=docker_container.name + '@' + DockerHostGear.hostname,
+                        admin_gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
+                                       docker_container.name + ' /bin/bash]',
+                        osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
+                        osi_ost_id=docker_container.ostid,
+                        osi_environment_ids=env_ids,
+                        osi_team_ids=team_ids
+                    )
+                    osi_from_ariane.save()
+                docker_container.oid = osi_from_ariane.id
+                docker_container.osi = osi_from_ariane
 
         for docker_container in docker_host.containers:
             if docker_container not in docker_host.last_containers:
@@ -234,6 +240,9 @@ class DirectoryGear(InjectorGearSkeleton):
 
 
 class MappingGear(InjectorGearSkeleton):
+
+    docker_host_mco = None
+
     def __init__(self):
         super(MappingGear, self).__init__(
             gear_id='ariane.community.plugin.docker.gears.cache.mapping_gear@' + str(DockerHostGear.hostname),
@@ -264,21 +273,46 @@ class MappingGear(InjectorGearSkeleton):
             self.cache(running=self.running)
 
     @staticmethod
+    def synchronize_process_sockets(docker_container, mapping_container, dc_process, mp_node):
+        pass
+
+    @staticmethod
+    def synchronize_container_processes(docker_container, mapping_container):
+        pass
+
+    @staticmethod
+    def synchronize_container_properties(docker_container, mapping_container):
+
+        pass
+
+    @staticmethod
     def synchronize_existing_containers(docker_host):
-        # sync old containers
-        ## sync processess
-        ### sync sockets
         for docker_container in docker_host.containers:
             if docker_container not in docker_host.new_containers:
-                pass
+                mapping_container = Container(
+                    name=docker_container.name,
+                    gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
+                             docker_container.name + ' /bin/bash]',
+                    primary_admin_gate_name='NamespaceAccess@'+docker_container.name,
+                    parent_container_id=MappingGear.docker_host_mco.id,
+                    company="Docker Inc.",      #TODO: ADD DOCKER CONTAINER ENV VAR
+                    product="Docker Container", #TODO: ADD DOCKER CONTAINER ENV VAR
+                    c_type="Docker Container"
+                )
+                mapping_container.save()
+                docker_container.mid = mapping_container.id
+                docker_container.mcontainer = mapping_container
+                MappingGear.synchronize_container_properties(docker_container, mapping_container)
+                MappingGear.synchronize_container_processes(docker_container, mapping_container)
 
     @staticmethod
     def synchronize_new_containers(docker_host):
         # sync new containers
         ## sync processess
         ### sync sockets
-        for docker_container in docker_host.new_containers:
-            pass
+        for docker_container in docker_host.containers:
+            if docker_container in docker_host.new_contaienrs:
+                pass
 
     @staticmethod
     def synchronize_removed_containers(docker_host):
@@ -299,6 +333,17 @@ class MappingGear(InjectorGearSkeleton):
                 else:
                     LOGGER.warning("No mapping container found for removed docker container " +
                                    str(docker_container.name) + " !")
+
+    @staticmethod
+    def init_ariane_mapping():
+        docker_host_mco = ContainerService.find_container(
+            primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri
+        )
+        if docker_host_mco is None:
+            LOGGER.error('Docker host ' + str(DockerHostGear.hostname) +
+                         ' Ariane container not found in Ariane mapping DB')
+            LOGGER.error('Did you run Ariane ProcOS on this host first ? Stopping ...')
+            sys.exit(-1)
 
     def synchronize_with_ariane_mapping(self, component):
         if self.running:
@@ -328,10 +373,11 @@ class DockerHostGear(InjectorGearSkeleton):
         DockerHostGear.hostname = socket.gethostname()
         DockerHostGear.config = config
         super(DockerHostGear, self).__init__(
-            gear_id='ariane.community.plugin.docker.gears.cache.docker_host_gear@'+str(DockerHostGear.hostname),
-            gear_name='docker_host_gear@'+str(DockerHostGear.hostname),
-            gear_description='Ariane Docker Host gear for '+str(DockerHostGear.hostname),
-            gear_admin_queue='ariane.community.plugin.docker.gears.cache.docker_host_gear@'+str(DockerHostGear.hostname),
+            gear_id='ariane.community.plugin.docker.gears.cache.docker_host_gear@' + str(DockerHostGear.hostname),
+            gear_name='docker_host_gear@' + str(DockerHostGear.hostname),
+            gear_description='Ariane Docker Host gear for ' + str(DockerHostGear.hostname),
+            gear_admin_queue='ariane.community.plugin.docker.gears.cache.docker_host_gear@' +
+                             str(DockerHostGear.hostname),
             running=False
         )
         self.sleeping_period = config.sleeping_period
@@ -362,6 +408,7 @@ class DockerHostGear(InjectorGearSkeleton):
         self.cache(running=self.running)
         LOGGER.warn("Initializing...")
         self.directory_gear.init_ariane_directories(self.component).get()
+        self.mapping_gear.init_ariane_mapping().get()
         self.component.sniff(synchronize_with_ariane_dbs=False).get()
         LOGGER.info("Synchonize with Ariane DBs...")
         self.directory_gear.synchronize_with_ariane_directories(self.component).get()
@@ -394,11 +441,11 @@ class DockerHostGear(InjectorGearSkeleton):
             self.service.start()
             self.cache(running=self.running)
         else:
-            LOGGER.warn('docker_host_gear@'+str(DockerHostGear.hostname)+' has been restarted')
+            LOGGER.warn('docker_host_gear@' + str(DockerHostGear.hostname) + ' has been restarted')
             self.on_start()
 
     def gear_stop(self):
         if self.running:
-            LOGGER.warn('docker_host_gear@'+str(DockerHostGear.hostname)+' has been stopped')
+            LOGGER.warn('docker_host_gear@' + str(DockerHostGear.hostname) + ' has been stopped')
             self.running = False
             self.cache(running=self.running)

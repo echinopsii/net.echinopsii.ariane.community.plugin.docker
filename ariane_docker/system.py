@@ -172,6 +172,12 @@ class DockerContainer(object):
     def __eq__(self, other):
         return self.did == other.did
 
+    def extract_properties(self):
+        pass
+
+    def extract_container_ip_and_nic(self):
+        pass
+
     def extract_os_type_from_env_vars(self):
         ret = None
         if self.details is not None and self.details['Config'] and self.details['Config']['Env']:

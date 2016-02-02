@@ -24,6 +24,7 @@ from ariane_clip3.directory import OSInstanceService, RoutingAreaService, Subnet
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
+from ariane_clip3.mapping import ContainerService
 from components import DockerComponent
 from system import DockerContainer
 
@@ -185,11 +186,10 @@ class DirectoryGear(InjectorGearSkeleton):
             if osi_from_ariane is None:
                 env_ids = [docker_container.eid] if docker_container.eid is not None else None
                 team_ids = [docker_container.tid] if docker_container.tid is not None else None
-                parent_osi = OSInstanceService.find_os_instance(osi_id=DockerHostGear.docker_host_osi)
                 osi_from_ariane = OSInstance(
                     name=docker_container.name + '.' + DockerHostGear.hostname,
                     description=docker_container.name + '@' + DockerHostGear.hostname,
-                    admin_gate_uri=parent_osi.admin_gate_uri + '/$[docker exec -i -t ' +
+                    admin_gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
                                    docker_container.name + ' /bin/bash]',
                     osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
                     osi_ost_id=docker_container.ostid,
@@ -229,7 +229,7 @@ class DirectoryGear(InjectorGearSkeleton):
             self.update_ariane_directories(docker_host)
             self.update_count += 1
         else:
-            LOGGER.warn("Synchronization requested but procos_directory_gear@" + str(DockerHostGear.hostname) +
+            LOGGER.warn("Synchronization requested but docker_directory_gear@" + str(DockerHostGear.hostname) +
                         " is not running.")
 
 
@@ -254,17 +254,66 @@ class MappingGear(InjectorGearSkeleton):
             self.cache(running=self.running)
 
     def gear_start(self):
-        LOGGER.warn('docker_mapping_gear@' + str(DockerHostGear.hostname) + ' has been started.')
+        LOGGER.warning('docker_mapping_gear@' + str(DockerHostGear.hostname) + ' has been started.')
         self.on_start()
 
     def gear_stop(self):
         if self.running:
-            LOGGER.warn('procos_mapping_gear@' + str(DockerHostGear.hostname) + ' has been stopped.')
+            LOGGER.warning('docker_mapping_gear@' + str(DockerHostGear.hostname) + ' has been stopped.')
             self.running = False
             self.cache(running=self.running)
 
+    @staticmethod
+    def synchronize_existing_containers(docker_host):
+        # sync old containers
+        ## sync processess
+        ### sync sockets
+        for docker_container in docker_host.containers:
+            if docker_container not in docker_host.new_containers:
+                pass
+
+    @staticmethod
+    def synchronize_new_containers(docker_host):
+        # sync new containers
+        ## sync processess
+        ### sync sockets
+        for docker_container in docker_host.new_containers:
+            pass
+
+    @staticmethod
+    def synchronize_removed_containers(docker_host):
+        for docker_container in docker_host.last_containers:
+            if docker_container not in docker_host.containers:
+                if docker_container.mid is None:
+                    mapping_container = ContainerService.find_container(
+                        primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
+                                               docker_container.name + ' /bin/bash]'
+                    )
+                    if mapping_container is not None:
+                        docker_container.mid = mapping_container.id
+                else:
+                    mapping_container = ContainerService.find_container(cid=docker_container.mid)
+
+                if mapping_container is not None:
+                    mapping_container.remove()
+                else:
+                    LOGGER.warning("No mapping container found for removed docker container " +
+                                   str(docker_container.name) + " !")
+
     def synchronize_with_ariane_mapping(self, component):
-        pass
+        if self.running:
+            docker_host = component.docker_host.get()
+            try:
+                self.synchronize_existing_containers(docker_host)
+                self.synchronize_new_containers(docker_host)
+                self.synchronize_removed_containers(docker_host)
+            except Exception as e:
+                LOGGER.error(e.__str__())
+                LOGGER.error(traceback.format_exc())
+            self.update_count += 1
+        else:
+            LOGGER.warn('Synchronization requested but docker_mapping_gear@' +
+                        str(DockerHostGear.hostname) + ' is not running.')
 
 
 class DockerHostGear(InjectorGearSkeleton):

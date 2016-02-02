@@ -32,8 +32,13 @@ class DockerImage(object):
     pass
 
 class DockerNetwork(object):
-    def __init__(self, nid=None, driver=None, IPAM=None, name=None, bridge_name=None,
-                 nic=None, options=None, scope=None, containers_network=None):
+    def __init__(self, bridge_name=None, subnet_id=None, subnet=None, nic_id=None, nic=None,
+                 nid=None, driver=None, IPAM=None, name=None, options=None, scope=None, containers_network=None):
+        self.subnet_id = subnet_id
+        self.subnet = subnet
+        self.nic_id = nic_id
+        self.nic = nic
+
         self.nid = nid
         self.driver = driver
         self.IPAM = IPAM
@@ -42,7 +47,6 @@ class DockerNetwork(object):
         self.options = options
         self.scope = scope
         self.containers_network = containers_network
-        self.nic = nic
 
     def __eq__(self, other):
         return self.nid == other.nid
@@ -68,21 +72,19 @@ class DockerNetwork(object):
             IPAM=json_obj['IPAM'] if json_obj['IPAM'] else None,
             name=json_obj['name'] if json_obj['name'] else None,
             bridge_name=json_obj['bridge_name'] if json_obj['bridge_name'] else None,
-            nic=json_obj['nic'] if json_obj['nic'] else None,
             options=json_obj['options'] if json_obj['options'] else None,
             scope=json_obj['scope'] if json_obj['scope'] else None,
             containers_network=json_obj['containers_network'] if json_obj['containers_network'] else None
         )
 
 class DockerContainerProcess(object):
-    def __init__(self, pid=None, mdpid=None, mospid=None, mcmid=None, cdid=None,
+    def __init__(self, pid=None, mdpid=None, mospid=None, mcid=None,
                  map_sockets=None, last_map_sockets=None):
         self.pid = pid
 
-        self.mdpid = mdpid
-        self.mospid = mospid
-        self.cmid = mcmid
-        self.cdid = cdid
+        self.mdpid = mdpid #mapping docker pid
+        self.mospid = mospid #mapping os pid
+        self.mcid = mcid #mapping container id
 
         self.map_sockets = map_sockets if map_sockets is not None else []
         self.last_map_sockets = last_map_sockets if last_map_sockets is not None else []
@@ -103,8 +105,7 @@ class DockerContainerProcess(object):
             'pid': self.pid,
             'mdpid': self.mdpid,
             'mospid': self.mospid,
-            'cmid': self.cmid,
-            'cdid': self.cdid,
+            'mcid': self.mcid,
             'map_sockets': map_socket_2_json,
             'last_map_sockets': last_map_socket_2_json
         }
@@ -124,29 +125,45 @@ class DockerContainerProcess(object):
         return DockerContainerProcess(
             pid=json_obj['pid'] if json_obj['pid'] else None,
             mdpid=json_obj['mdpid'] if json_obj['mdpid'] else None,
-            mospid=json_obj['mospid'] if json_obj['modpid'] else None,
-            mcmid=json_obj['cmid'] if json_obj['cmid'] else None,
-            cdid=json_obj['cdid'] if json_obj['cdid'] else None,
+            mospid=json_obj['mospid'] if json_obj['mospid'] else None,
+            mcid=json_obj['mcid'] if json_obj['mcid'] else None,
             map_sockets=map_sockets,
             last_map_sockets=last_map_sockets
         )
 
 class DockerContainer(object):
-    def __init__(self, dcontainer_id=None, mcontainer_id=None, osi_id=None, environment_id=None, team_id=None,
+
+    ariane_ost_name = "ARIANE_OS_TYPE_NAME"
+    ariane_ost_arc = "ARIANE_OS_TYPE_ARCHITECTURE"
+    ariane_ost_scmp_name = "ARIANE_OS_TYPE_SUPPORTING_COMPANY_NAME"
+    ariane_ost_scmp_desc = "ARIANE_OS_TYPE_SUPPORTING_COMPANY_DESCRIPTION"
+
+    ariane_team_name = "ARIANE_TEAM_NAME"
+    ariane_team_cc = "ARIANE_TEAM_COLOR_CODE"
+    ariane_team_desc = "ARIANE_TEAM_DESCRIPTION"
+
+    ariane_environment_name = "ARIANE_ENV_NAME"
+    ariane_environment_cc = "ARIANE_ENV_COLOR_CODE"
+    ariane_environment_desc = "ARIANE_ENV_DESCRIPTION"
+
+    def __init__(self, dcontainer_id=None, mcontainer_id=None, mcontainer=None, osi_id=None, osi=None,
+                 ost_id=None, ost=None, environment_id=None, environment=None, team_id=None, team=None,
                  name=None, nsenter_pid=None, details=None, processs=None, last_processs=None):
-        #cli.containers()
-        #cli.inspect_container(did)
-        #cli.top(did)
-        #nsenter subprocess 'netstat -i'
         self.did = dcontainer_id
         self.name = name
         self.nsented_pid = nsenter_pid
         self.details = details
 
         self.mid = mcontainer_id
+        self.mcontainer = mcontainer
         self.oid = osi_id
+        self.osi = osi
+        self.ostid = ost_id
+        self.ost = ost
         self.eid = environment_id
+        self.environment = environment
         self.tid = team_id
+        self.team = team
 
         self.processs = processs if processs is not None else []
         self.last_processs = last_processs if last_processs is not None else []
@@ -154,6 +171,67 @@ class DockerContainer(object):
 
     def __eq__(self, other):
         return self.did == other.did
+
+    def extract_os_type_from_env_vars(self):
+        ret = None
+        if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
+            env_vars = self.details['Config']['Env']
+            for vars in env_vars:
+                if vars.startswith(DockerContainer.ariane_ost_name):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_ost_name] = vars.split('=')[1]
+                if vars.startswith(DockerContainer.ariane_ost_arc):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_ost_arc] = vars.split('=')[1]
+                if vars.startswith(DockerContainer.ariane_ost_scmp_name):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_ost_scmp_name] = vars.split('=')[1]
+                if vars.startswith(DockerContainer.ariane_ost_scmp_desc):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_ost_scmp_desc] = vars.split('=')[1]
+        return ret
+
+    def extract_environment_from_env_vars(self):
+        ret = None
+        if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
+            env_vars = self.details['Config']['Env']
+            for vars in env_vars:
+                if vars.startswith(DockerContainer.ariane_environment_name):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_environment_name] = vars.split('=')[1]
+                if vars.startswith(DockerContainer.ariane_environment_cc):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_environment_cc] = vars.split('=')[1]
+                if vars.startswith(DockerContainer.ariane_environment_desc):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_environment_desc] = vars.split('=')[1]
+        return ret
+
+    def extract_team_from_env_vars(self):
+        ret = None
+        if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
+            env_vars = self.details['Config']['Env']
+            for vars in env_vars:
+                if vars.startswith(DockerContainer.ariane_team_name):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_team_name] = vars.split('=')[1]
+                if vars.startswith(DockerContainer.ariane_team_cc):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_team_cc] = vars.split('=')[1]
+                if vars.startswith(DockerContainer.ariane_team_desc):
+                    if ret is None:
+                        ret = {}
+                    ret[DockerContainer.ariane_team_desc] = vars.split('=')[1]
+        return ret
 
     def to_json(self):
         processs_2_json = []
@@ -169,6 +247,7 @@ class DockerContainer(object):
             'nsenter_pid': self.nsented_pid,
             'mid': self.mid,
             'oid': self.oid,
+            'ostid': self.ostid,
             'eid': self.eid,
             'tid': self.tid,
             'processs': processs_2_json,
@@ -178,11 +257,11 @@ class DockerContainer(object):
 
     @staticmethod
     def from_json(json_obj):
-        processs_json = json_obj['processs'] if json_obj['processs'] else[]
+        processs_json = json_obj['processs'] if json_obj['processs'] else []
         processs = []
         for process_json in processs_json:
             processs.append(DockerContainerProcess.from_json(process_json))
-        last_processs_json = json_obj['last_processs'] if json_obj['last_processs'] else[]
+        last_processs_json = json_obj['last_processs'] if json_obj['last_processs'] else []
         last_processs = []
         for last_process_json in last_processs_json:
             last_processs.append(DockerContainerProcess.from_json(last_process_json))
@@ -190,6 +269,7 @@ class DockerContainer(object):
             dcontainer_id=json_obj['did'] if json_obj['did'] else None,
             mcontainer_id=json_obj['mid'] if json_obj['mid'] else None,
             osi_id=json_obj['oid'] if json_obj['oid'] else None,
+            ost_id=json_obj['ostid'] if json_obj['ostid'] else None,
             environment_id=json_obj['eid'] if json_obj['eid'] else None,
             team_id=json_obj['tid'] if json_obj['tid'] else None,
             name=json_obj['name'] if json_obj['name'] else None,
@@ -271,7 +351,7 @@ class DockerContainer(object):
         self.processs = []
         self.new_processs = []
 
-        c_netstat =  self.netstat()
+        c_netstat = self.netstat()
         c_top = cli.top(self.did)
 
         for processTop in c_top['Processes']:
@@ -280,7 +360,14 @@ class DockerContainer(object):
                 if pid_socket['pid'] == a_process.pid:
                     a_process.map_sockets.append(pid_socket['socket'])
             if a_process in self.last_processs:
-                pass
+                for last_process in self.last_processs:
+                    if last_process == a_process:
+                        if last_process.mdpid is not None:
+                            a_process.mpdid = last_process.mpdid
+                        if last_process.mospid is not None:
+                            a_process.mospid = last_process.mospid
+                        if last_process.mcid is not None:
+                            a_process.mcid = last_process.mcid
             else:
                 self.new_processs.append(a_process)
             self.processs.append(a_process)
@@ -389,19 +476,26 @@ class DockerHost(object):
         for network in cli.networks():
             bridge_name = \
                 network['Options']['com.docker.network.bridge.name'] if 'com.docker.network.bridge.name' in network['Options'] is not None else None
+
             docker_network = DockerNetwork(
+                bridge_name=bridge_name,
                 nid=network['Id'],
                 driver=network['Driver'],
                 name=network['Name'],
                 IPAM=network['IPAM'],
                 options=network['Options'],
-                bridge_name=bridge_name,
                 scope=network['Scope'],
                 containers_network=network['Containers']
             )
             if docker_network in self.last_networks:
-                #TODO
-                pass
+                for last_network in self.last_networks:
+                    if last_network == docker_network:
+                        if last_network.subnet_id is not None:
+                            docker_network.subnet_id = last_network.subnet_id
+                        if last_network.nic_id is not None:
+                            docker_network.nic_id = last_network.nic_id
+                        if last_network.ip_id is not None:
+                            docker_network.ip_id = last_network.ip_id
             else:
                 self.new_networks.append(docker_network)
             self.networks.append(docker_network)
@@ -420,8 +514,11 @@ class DockerHost(object):
                     if last_container == docker_container:
                         if last_container.mid is not None:
                             docker_container.mid = last_container.mid
+                        if last_container.oid is not None:
                             docker_container.oid = last_container.oid
+                        if last_container.eid is not None:
                             docker_container.eid = last_container.eid
+                        if last_container.tid is not None:
                             docker_container.tid = last_container.tid
                         else:
                             name = docker_container.did

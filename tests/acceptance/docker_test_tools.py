@@ -1,3 +1,5 @@
+from ariane_docker.system import DockerContainer
+
 __author__ = 'mffrench'
 
 class DockerTestTools(object):
@@ -9,7 +11,19 @@ class DockerTestTools(object):
         self.test_container = self.cli.create_container(
             name="ariane_docker_ctest",
             hostname="ariane_docker_ctest",
-            environment={"MYSQL_ROOT_PASSWORD": "YHN444rty"},
+            environment={
+                "MYSQL_ROOT_PASSWORD": "YHN444rty",
+                DockerContainer.ariane_ost_name: "Linux Debian 8",
+                DockerContainer.ariane_ost_arc: "x86_64",
+                DockerContainer.ariane_ost_scmp_name: "Debian Community",
+                DockerContainer.ariane_ost_scmp_desc: "Debian",
+                DockerContainer.ariane_team_name: "TSTdev",
+                DockerContainer.ariane_team_cc: "000000",
+                DockerContainer.ariane_team_desc: "TST DEV",
+                DockerContainer.ariane_environment_name: "TEST",
+                DockerContainer.ariane_environment_cc: "333333",
+                DockerContainer.ariane_environment_desc: "TEST ENV"
+            },
             detach=True,
             image="mariadb"
         )

@@ -19,11 +19,13 @@ import logging
 import socket
 import threading
 import traceback
-from ariane_clip3.directory import OSInstanceService, RoutingAreaService
+from ariane_clip3.directory import OSInstanceService, RoutingAreaService, SubnetService, NICardService, IPAddressService, \
+    TeamService, Team, EnvironmentService, Environment, OSInstance, OSTypeService, CompanyService, Company, OSType
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
 from components import DockerComponent
+from system import DockerContainer
 
 __author__ = 'mffrench'
 
@@ -97,15 +99,105 @@ class DirectoryGear(InjectorGearSkeleton):
                 sys.exit(-1)
             cached_docker_host.lra_id = DockerHostGear.docker_host_lra.id
 
+    @staticmethod
+    def sync_docker_networks(docker_host):
+        # CREATION AND REMOVAL OF DOCKER NETWORK ARE DONE BY ARIANE PROCOS PLUGIN
+        for docker_network in docker_host.networks:
+            if docker_network.nic_id is None and docker_network.bridge_name is not None:
+                #SYNC NIC HOLDING THE SUBNET BRIDGE
+                nic_name = docker_network.bridge_name + '.' + DockerHostGear.hostname
+                nic = NICardService.find_niCard(nic_name=nic_name)
+                if nic is not None:
+                    docker_network.nic_id = nic.id
+                    docker_network.nic = nic
+                    #SYNC SUBNET
+                    ip_address = IPAddressService.find_ip_address(ipa_id=nic.nic_ipa_id)
+                    subnet = SubnetService.find_subnet(sb_name=ip_address.ipa_subnet_id)
+                    if subnet is not None:
+                        docker_network.subnet_id = subnet.id
+                        docker_network.subnet = subnet
+                    else:
+                        LOGGER.warning('docker subnet for nic ' + nic_name + ' not found in Ariane directories !')
+                else:
+                    LOGGER.warning(nic_name + ' NIC not found in Ariane directories !')
+
+    @staticmethod
+    def sync_docker_containers(docker_host):
+        for docker_container in docker_host.new_containers:
+            team_from_conf = docker_container.extract_team_from_env_vars()
+            if team_from_conf is not None:
+                team_from_ariane = TeamService.find_team(team_name=team_from_conf[DockerContainer.ariane_team_name])
+                if team_from_ariane is None:
+                    team_from_ariane = Team(
+                        name=team_from_conf[DockerContainer.ariane_team_name],
+                        color_code=team_from_conf[DockerContainer.ariane_team_cc],
+                        description=team_from_conf[DockerContainer.ariane_team_desc]
+                    )
+                    team_from_ariane.save()
+                docker_container.tid = team_from_ariane.id
+
+            env_from_conf = docker_container.extract_env_from_env_vars()
+            if env_from_conf is not None:
+                env_from_ariane = EnvironmentService.find_environment(
+                    env_name=env_from_conf[DockerContainer.ariane_environment_name]
+                )
+                if env_from_ariane is None:
+                    env_from_ariane = Environment(
+                        name=env_from_conf[DockerContainer.ariane_environment_name],
+                        color_code=env_from_conf[DockerContainer.ariane_environment_cc],
+                        description=env_from_conf[DockerContainer.ariane_environment_desc]
+                    )
+                    env_from_ariane.save()
+                docker_container.eid = env_from_ariane.id
+
+            ost_from_conf = docker_container.extract_os_type_from_env_vars()
+            if ost_from_conf is not None:
+                ost_from_ariane = OSTypeService.find_ostype(ost_name=ost_from_conf[DockerContainer.ariane_ost_name])
+                if ost_from_ariane is None:
+                    cmp_from_ariane = CompanyService.find_company(
+                        cmp_name=ost_from_conf[DockerContainer.ariane_ost_scmp_name]
+                    )
+                    if cmp_from_ariane is None:
+                        cmp_from_ariane = Company(
+                            name=ost_from_conf[DockerContainer.ariane_ost_scmp_name],
+                            description=ost_from_conf[DockerContainer.ariane_ost_scmp_desc]
+                        )
+                        cmp_from_ariane.save()
+                    ost_from_ariane = OSType(
+                        name=ost_from_conf[DockerContainer.ariane_ost_name],
+                        architecture=ost_from_conf[DockerContainer.ariane_ost_arc],
+                        os_type_company_id=cmp_from_ariane.id
+                    )
+                    ost_from_ariane.save()
+
+            osi_from_ariane = OSInstanceService.find_os_instance(
+                osi_name=docker_container.name + '.' + DockerHostGear.hostname
+            )
+            if osi_from_ariane is None:
+                env_ids = [docker_container.eid]
+                team_ids = [docker_container.tid]
+                osi_from_ariane = OSInstance(
+                    name=docker_container.name + '.' + DockerHostGear.hostname,
+                    description=docker_container.name + '@' + DockerHostGear.hostname,
+                    admin_gate_uri='',
+                    osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
+                    osi_ost_id=docker_container.ostid,
+                    osi_environment_ids=env_ids,
+                    osi_team_ids=team_ids
+                )
+                osi_from_ariane.save()
+            docker_container.oid = osi_from_ariane.id
+
+    def update_ariane_directories(self, docker_host):
+        if docker_host.networks != docker_host.last_networks:
+            self.sync_docker_networks(docker_host)
+        if docker_host.containers != docker_host.last_containers:
+            self.sync_docker_containers(docker_host)
+
     def init_ariane_directories(self, component):
         docker_host = component.docker_host.get()
         self.sync_docker_host_osi(docker_host)
         self.sync_docker_host_lra(docker_host)
-
-    def update_ariane_directories(self, docker_host):
-        # insert new container ref on directories
-        # insert new networks ref on directories
-        pass
 
     def synchronize_with_ariane_directories(self, component):
         if self.running:

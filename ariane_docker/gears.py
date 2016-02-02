@@ -135,6 +135,9 @@ class DirectoryGear(InjectorGearSkeleton):
                     )
                     team_from_ariane.save()
                 docker_container.tid = team_from_ariane.id
+            else:
+                LOGGER.warning("Team is not specified in the docker container ( " + docker_container.name +
+                               " ) environment variables !")
 
             env_from_conf = docker_container.extract_env_from_env_vars()
             if env_from_conf is not None:
@@ -149,6 +152,9 @@ class DirectoryGear(InjectorGearSkeleton):
                     )
                     env_from_ariane.save()
                 docker_container.eid = env_from_ariane.id
+            else:
+                LOGGER.warning("Environment is not specified in the docker container ( " + docker_container.name +
+                               " ) environment variables !")
 
             ost_from_conf = docker_container.extract_os_type_from_env_vars()
             if ost_from_conf is not None:
@@ -169,17 +175,22 @@ class DirectoryGear(InjectorGearSkeleton):
                         os_type_company_id=cmp_from_ariane.id
                     )
                     ost_from_ariane.save()
+            else:
+                LOGGER.warning("OS Type is not specified in the docker container ( " + docker_container.name +
+                               " ) environment variables !")
 
             osi_from_ariane = OSInstanceService.find_os_instance(
                 osi_name=docker_container.name + '.' + DockerHostGear.hostname
             )
             if osi_from_ariane is None:
-                env_ids = [docker_container.eid]
-                team_ids = [docker_container.tid]
+                env_ids = [docker_container.eid] if docker_container.eid is not None else None
+                team_ids = [docker_container.tid] if docker_container.tid is not None else None
+                parent_osi = OSInstanceService.find_os_instance(osi_id=DockerHostGear.docker_host_osi)
                 osi_from_ariane = OSInstance(
                     name=docker_container.name + '.' + DockerHostGear.hostname,
                     description=docker_container.name + '@' + DockerHostGear.hostname,
-                    admin_gate_uri='',
+                    admin_gate_uri=parent_osi.admin_gate_uri + '/$[docker exec -i -t ' +
+                                   docker_container.name + ' /bin/bash]',
                     osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
                     osi_ost_id=docker_container.ostid,
                     osi_environment_ids=env_ids,
@@ -224,19 +235,33 @@ class DirectoryGear(InjectorGearSkeleton):
 
 class MappingGear(InjectorGearSkeleton):
     def __init__(self):
-        pass
+        super(MappingGear, self).__init__(
+            gear_id='ariane.community.plugin.docker.gears.cache.mapping_gear@' + str(DockerHostGear.hostname),
+            gear_name='docker_mapping_gear@' + str(DockerHostGear.hostname),
+            gear_description='Ariane Docker injector gear for ' + str(DockerHostGear.hostname),
+            gear_admin_queue='ariane.community.plugin.docker.gears.cache.mapping_gear@' + str(DockerHostGear.hostname),
+            running=False
+        )
+        self.update_count = 0
 
     def on_start(self):
-        pass
+        self.running = True
+        self.cache(running=self.running)
 
     def on_stop(self):
-        pass
+        if self.running:
+            self.running = False
+            self.cache(running=self.running)
 
     def gear_start(self):
-        pass
+        LOGGER.warn('docker_mapping_gear@' + str(DockerHostGear.hostname) + ' has been started.')
+        self.on_start()
 
     def gear_stop(self):
-        pass
+        if self.running:
+            LOGGER.warn('procos_mapping_gear@' + str(DockerHostGear.hostname) + ' has been stopped.')
+            self.running = False
+            self.cache(running=self.running)
 
     def synchronize_with_ariane_mapping(self, component):
         pass

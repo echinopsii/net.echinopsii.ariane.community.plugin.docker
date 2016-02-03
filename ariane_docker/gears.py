@@ -24,7 +24,7 @@ from ariane_clip3.directory import OSInstanceService, RoutingAreaService, Subnet
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
-from ariane_clip3.mapping import ContainerService, Container
+from ariane_clip3.mapping import ContainerService, Container, NodeService, Node
 from components import DockerComponent
 from system import DockerContainer
 
@@ -277,12 +277,59 @@ class MappingGear(InjectorGearSkeleton):
         pass
 
     @staticmethod
-    def synchronize_container_processes(docker_container, mapping_container):
-        pass
+    def synchronize_existing_processs_node(docker_container, mapping_container):
+        for process in docker_container.processs:
+            if process in docker_container.last_processs:
+                pass
+
+    @staticmethod
+    def synchronize_new_processs_node(docker_container, mapping_container):
+        for process in docker_container.processs:
+            if process in docker_container.new_processs:
+                process.mcid = mapping_container.id
+
+                mosp = None
+                MappingGear.docker_host_mco.sync()
+                #TODO : provide find_node(name_pattern=...) to improve following source
+                for docker_host_mpid in MappingGear.docker_host_mco.nodes_id:
+                    node_to_test = NodeService.find_node(nid=docker_host_mpid)
+                    if node_to_test is not None and node_to_test.name.startswith('[' + str(process.pid) + ']'):
+                        mosp = node_to_test
+                        break
+
+                if mosp is not None:
+                    process_node = Node(
+                        name=mosp.name,
+                        container_id=process.mcid
+                    )
+                    process.mdpid = process_node.id
+                    process.msp = process_node
+                    process.mospid = mosp.id
+                    process.mos = mosp
+                    MappingGear.synchronize_process_sockets(docker_container, mapping_container, process, process_node)
+                else:
+                    LOGGER.warning("Shadow Mapping OS node for process " + str(process.pid) + " not found !")
+
+    @staticmethod
+    def synchronize_removed_processs_node(docker_container, mapping_container):
+        for process in docker_container.last_processs:
+            if process not in docker_container.processs:
+                process_node = NodeService.find_node(nid=process.mdpid)
+                if process_node is not None:
+                    process_node.remove()
+                else:
+                    LOGGER.warning("Mapping node for process " + process.pid + "@" + mapping_container.name +
+                                   " not found !")
+
+    @staticmethod
+    def synchronize_container_processs(docker_container, mapping_container):
+        MappingGear.synchronize_existing_processs_node(docker_container, mapping_container)
+        MappingGear.synchronize_new_processs_node(docker_container, mapping_container)
+        MappingGear.synchronize_removed_processs_node(docker_container, mapping_container)
 
     @staticmethod
     def synchronize_container_properties(docker_container, mapping_container):
-
+        #TODO
         pass
 
     @staticmethod
@@ -295,23 +342,20 @@ class MappingGear(InjectorGearSkeleton):
                              docker_container.name + ' /bin/bash]',
                     primary_admin_gate_name='NamespaceAccess@'+docker_container.name,
                     parent_container_id=MappingGear.docker_host_mco.id,
-                    company="Docker Inc.",      #TODO: ADD DOCKER CONTAINER ENV VAR
-                    product="Docker Container", #TODO: ADD DOCKER CONTAINER ENV VAR
+                    company="Docker Inc.",     #TODO: ADD DOCKER CONTAINER ENV VAR
+                    product="Docker Container",#TODO: ADD DOCKER CONTAINER ENV VAR
                     c_type="Docker Container"
                 )
                 mapping_container.save()
                 docker_container.mid = mapping_container.id
                 docker_container.mcontainer = mapping_container
                 MappingGear.synchronize_container_properties(docker_container, mapping_container)
-                MappingGear.synchronize_container_processes(docker_container, mapping_container)
+                MappingGear.synchronize_container_processs(docker_container, mapping_container)
 
     @staticmethod
     def synchronize_new_containers(docker_host):
-        # sync new containers
-        ## sync processess
-        ### sync sockets
         for docker_container in docker_host.containers:
-            if docker_container in docker_host.new_contaienrs:
+            if docker_container in docker_host.new_containers:
                 pass
 
     @staticmethod

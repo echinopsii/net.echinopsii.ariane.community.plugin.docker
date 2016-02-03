@@ -78,13 +78,16 @@ class DockerNetwork(object):
         )
 
 class DockerContainerProcess(object):
-    def __init__(self, pid=None, mdpid=None, mospid=None, mcid=None,
+    def __init__(self, pid=None, mdpid=None, mdp=None, mospid=None, mosp=None, mcid=None, mc=None,
                  map_sockets=None, last_map_sockets=None):
         self.pid = pid
 
-        self.mdpid = mdpid #mapping docker pid
-        self.mospid = mospid #mapping os pid
-        self.mcid = mcid #mapping container id
+        self.mdpid = mdpid #mapping docker process node id
+        self.mdp = mdp
+        self.mospid = mospid #mapping os process node id
+        self.mosp = mosp
+        self.mcid = mcid #mapping container id (parent)
+        self.mc = mc
 
         self.map_sockets = map_sockets if map_sockets is not None else []
         self.last_map_sockets = last_map_sockets if last_map_sockets is not None else []

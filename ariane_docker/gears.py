@@ -24,7 +24,7 @@ from ariane_clip3.directory import OSInstanceService, RoutingAreaService, Subnet
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
-from ariane_clip3.mapping import ContainerService, Container, NodeService, Node
+from ariane_clip3.mapping import ContainerService, Container, NodeService, Node, EndpointService
 from components import DockerComponent
 from docker import DockerContainer
 
@@ -205,8 +205,7 @@ class DirectoryGear(InjectorGearSkeleton):
                 docker_container.oid = osi_from_ariane.id
                 docker_container.osi = osi_from_ariane
 
-        for docker_container in docker_host.containers:
-            if docker_container not in docker_host.last_containers:
+            elif docker_container not in docker_host.last_containers:
                 if docker_container.oid is not None:
                     osi_from_ariane = OSInstanceService.find_os_instance(
                         osi_id=docker_container.oid
@@ -273,33 +272,72 @@ class MappingGear(InjectorGearSkeleton):
             self.cache(running=self.running)
 
     @staticmethod
-    def synchronize_existing_map_socket(docker_container, dc_process, map_socket):
-        pass
+    def synchronize_new_map_socket(docker_container, process, map_socket):
+        if map_socket.source_ip is not None and map_socket.source_port is not None:
+            proto = None
+            if map_socket.type == "SOCK_STREAM":
+                proto = "tcp://"
+            elif map_socket.type == "SOCK_DGRAM":
+                proto = "udp://"
+            else:
+                LOGGER.warning("socket type " + map_socket.type + " currently not supported !")
+
+            if proto is not None:
+                process_mid = process.mdpid
+                source_url = proto + map_socket.source_ip + ":" + str(map_socket.source_port)
+
+                #TEST IF LOCAL SOCKET
+                is_local = True
+                if is_local:
+                    pass
+                else:
+                    #TEST IF INSIDE DOCKER HOST
+                    is_inside_docker_host = True
+                    if is_inside_docker_host:
+                        pass
+                    else:
+                        pass
+                    pass
+                pass
+        else:
+            LOGGER.warning('no source ip / port - ' + str(map_socket))
 
     @staticmethod
-    def synchronize_new_map_socket(docker_container, dc_process, map_socket):
-        pass
+    def synchronize_removed_map_socket(docker_container, process, map_socket):
+        if map_socket.source_endpoint_id is not None:
+            source_endpoint = EndpointService.find_endpoint(eid=map_socket.source_endpoint_id)
+            if source_endpoint is not None:
+                source_endpoint.remove()
+            else:
+                LOGGER.warn("Dead socket (source endpoint : " + str(map_socket.source_endpoint_id) +
+                            ") doesn't exist anymore on DB!")
+
+        if map_socket.destination_endpoint_id is not None:
+            destination_endpoint = EndpointService.find_endpoint(eid=map_socket.destination_endpoint_id)
+            if destination_endpoint is not None:
+                destination_endpoint.remove()
+            else:
+                LOGGER.warn("Dead socket (destination endpoint : " + str(map_socket.source_endpoint_id) +
+                            ") doesn't exist anymore on DB!")
 
     @staticmethod
-    def synchronize_removed_map_socket(docker_container, dc_process, map_socket):
-        pass
+    def synchronize_process_sockets(docker_container, process):
+        for map_socket in process.map_sockets:
+            if map_socket in process.new_map_sockets:
+                MappingGear.synchronize_new_map_socket(docker_container, process, map_socket)
+        for map_socket in process.last_map_sockets:
+            if map_socket not in process.map_sockets:
+                MappingGear.synchronize_removed_map_socket(docker_container, process, map_socket)
 
     @staticmethod
-    def synchronize_process_sockets(docker_container, dc_process):
-        mapping_container = docker_container.mcontainer
-        for map_socket in dc_process.map_sockets:
-            if map_socket in dc_process.new_map_sockets:
-                MappingGear.synchronize_new_map_socket(docker_container, dc_process, map_socket)
-            elif map_socket in dc_process.last_map_sockets:
-                MappingGear.synchronize_existing_map_socket(docker_container, dc_process, map_socket)
-        for map_socket in dc_process.last_map_sockets:
-            if map_socket not in dc_process.map_sockets:
-                MappingGear.synchronize_removed_map_socket(docker_container, dc_process, map_socket)
+    def synchronize_process_properties(docker_container, process):
+        #TODO
+        pass
 
     @staticmethod
     def synchronize_existing_processs_node(docker_container, process):
         mapping_container = docker_container.mcontainer
-        MappingGear.synchronize_process_sockets(docker_container, process)
+        #SYNC PROCESS PROPERTIES
 
     @staticmethod
     def synchronize_new_processs_node(docker_container, process):
@@ -324,7 +362,6 @@ class MappingGear(InjectorGearSkeleton):
                 process.msp = process_node
                 process.mospid = mosp.id
                 process.mos = mosp
-                MappingGear.synchronize_process_sockets(docker_container, process)
             else:
                 LOGGER.warning("Shadow Mapping OS node for process " + str(process.pid) + " not found !")
 
@@ -340,11 +377,16 @@ class MappingGear(InjectorGearSkeleton):
 
     @staticmethod
     def synchronize_container_processs(docker_container):
+        # SYNC EXISTING/NEW PROCESSES NODES
         for process in docker_container.processs:
             if process in docker_container.new_processs:
                 MappingGear.synchronize_new_processs_node(docker_container, process)
             elif process in docker_container.last_processs:
                 MappingGear.synchronize_existing_processs_node(docker_container, process)
+        # SYNC PROCESSES SOCKETS
+        for process in docker_container.processs:
+            MappingGear.synchronize_process_sockets(docker_container, process)
+        # SYNC DEAD PROCESSES
         for process in docker_container.last_processs:
             if process not in docker_container.processs:
                 MappingGear.synchronize_removed_processs_node(docker_container, process)

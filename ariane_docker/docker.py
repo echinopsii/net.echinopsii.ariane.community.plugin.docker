@@ -21,7 +21,7 @@ import os
 import subprocess
 import tempfile
 from sys import platform as _platform
-from ariane_procos.system import MapSocket
+from ariane_procos.system import MapSocket, NetworkInterfaceCard
 from nsenter import Namespace
 
 __author__ = 'mffrench'
@@ -150,7 +150,8 @@ class DockerContainer(object):
 
     def __init__(self, dcontainer_id=None, mcontainer_id=None, mcontainer=None, osi_id=None, osi=None,
                  ost_id=None, ost=None, environment_id=None, environment=None, team_id=None, team=None,
-                 name=None, nsenter_pid=None, details=None, processs=None, last_processs=None):
+                 name=None, nsenter_pid=None, details=None, processs=None, last_processs=None,
+                 last_nics=None, nics=None):
         self.did = dcontainer_id
         self.name = name
         self.nsented_pid = nsenter_pid
@@ -171,13 +172,13 @@ class DockerContainer(object):
         self.last_processs = last_processs if last_processs is not None else []
         self.new_processs = []
 
+        self.last_nics = last_nics if last_nics is not None else []
+        self.nics = nics if nics is not None else []
+
     def __eq__(self, other):
         return self.did == other.did
 
     def extract_properties(self):
-        pass
-
-    def extract_container_ip_and_nic(self):
         pass
 
     def extract_os_type_from_env_vars(self):
@@ -248,6 +249,12 @@ class DockerContainer(object):
         last_processs_2_json = []
         for last_process in self.last_processs:
             last_processs_2_json.append(last_process.to_json())
+        nics_2_json = []
+        for nic in self.nics:
+            nics_2_json.append(nic.to_json())
+        last_nics_2_json = []
+        for last_nic in self.last_nics:
+            last_nics_2_json.append(last_nic.to_json())
         json_obj = {
             'did': self.did,
             'name': self.name,
@@ -259,7 +266,9 @@ class DockerContainer(object):
             'eid': self.eid,
             'tid': self.tid,
             'processs': processs_2_json,
-            'last_processs': last_processs_2_json
+            'last_processs': last_processs_2_json,
+            'nics': nics_2_json,
+            'last_nics': last_nics_2_json
         }
         return json_obj
 
@@ -273,6 +282,14 @@ class DockerContainer(object):
         last_processs = []
         for last_process_json in last_processs_json:
             last_processs.append(DockerContainerProcess.from_json(last_process_json))
+        nics_json = json_obj['nics'] if json_obj['nics'] else []
+        nics = []
+        for nic_json in nics_json:
+            nics.append(NetworkInterfaceCard.from_json(nic_json))
+        last_nics_json = json_obj['last_nics'] if json_obj['last_nics'] else []
+        last_nics = []
+        for last_nic_json in last_nics_json:
+            last_nics.append(NetworkInterfaceCard.from_json(last_nic_json))
         return DockerContainer(
             dcontainer_id=json_obj['did'] if json_obj['did'] else None,
             mcontainer_id=json_obj['mid'] if json_obj['mid'] else None,
@@ -284,7 +301,9 @@ class DockerContainer(object):
             details=json_obj['details'] if json_obj['details'] else None,
             nsenter_pid=json_obj['nsenter_pid'] if json_obj['nsenter_pid'] else None,
             processs=processs,
-            last_processs=last_processs
+            last_processs=last_processs,
+            nics=nics,
+            last_nics=last_nics
         )
 
     def netstat(self):
@@ -381,6 +400,7 @@ class DockerContainer(object):
             else:
                 self.new_processs.append(a_process)
             self.processs.append(a_process)
+        #TODO: ethtool + container network details
 
 
 class DockerHost(object):

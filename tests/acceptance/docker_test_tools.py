@@ -1,4 +1,4 @@
-from ariane_docker.system import DockerContainer
+from ariane_docker.docker import DockerContainer
 
 __author__ = 'mffrench'
 

@@ -4,7 +4,7 @@ import unittest
 from tests.acceptance.docker_test_tools import DockerTestTools
 from ariane_docker.config import Config
 from ariane_docker.connector import DockerConnector
-from ariane_docker.system import DockerHost
+from ariane_docker.docker import DockerHost
 
 __author__ = 'mffrench'
 

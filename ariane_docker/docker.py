@@ -92,7 +92,6 @@ class DockerContainerProcess(object):
         self.map_sockets = map_sockets if map_sockets is not None else []
         self.last_map_sockets = last_map_sockets if last_map_sockets is not None else []
         self.new_map_sockets = []
-        self.dead_map_sockets = []
 
     def __eq__(self, other):
         return self.pid == other.pid
@@ -304,6 +303,7 @@ class DockerContainer(object):
                     text = tmpfile.readlines()
                     tmpfile.close()
                 os.remove(tmpfilename)
+
                 for line in text:
                     if line.startswith('tcp') or line.startswith('tcp6') or \
                        line.startswith('udp') or line.startswith('udp6'):
@@ -377,6 +377,7 @@ class DockerContainer(object):
                             a_process.mospid = last_process.mospid
                         if last_process.mcid is not None:
                             a_process.mcid = last_process.mcid
+                        a_process.last_map_sockets = copy.deepcopy(last_process.map_sockets)
             else:
                 self.new_processs.append(a_process)
             self.processs.append(a_process)
@@ -384,7 +385,8 @@ class DockerContainer(object):
 
 class DockerHost(object):
     def __init__(self, host_container_id=None, host_osi_id=None, host_lra_id=None,
-                 hostname=None, info=None, containers=None, last_containers=None, networks=None, last_networks=None):
+                 hostname=None, info=None, containers=None, last_containers=None,
+                 networks=None, last_networks=None):
         self.hostname = hostname
         self.info = info
 

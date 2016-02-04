@@ -21,7 +21,7 @@ import socket
 import traceback
 from ariane_clip3.injector import InjectorComponentSkeleton, InjectorCachedComponent
 import datetime
-from system import DockerHost
+from docker import DockerHost
 
 __author__ = 'mffrench'
 

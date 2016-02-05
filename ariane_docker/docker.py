@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import copy
+from ipaddress import IPv4Network
 import logging
 import os
 import subprocess
@@ -150,10 +151,12 @@ class DockerContainer(object):
 
     def __init__(self, dcontainer_id=None, mcontainer_id=None, mcontainer=None, osi_id=None, osi=None,
                  ost_id=None, ost=None, environment_id=None, environment=None, team_id=None, team=None,
-                 name=None, nsenter_pid=None, details=None, processs=None, last_processs=None,
-                 last_nics=None, nics=None):
+                 name=None, domain=None, fqdn=None, nsenter_pid=None, details=None,
+                 processs=None, last_processs=None, last_nics=None, nics=None):
         self.did = dcontainer_id
         self.name = name
+        self.domain = domain
+        self.fqdn = fqdn
         self.nsented_pid = nsenter_pid
         self.details = details
 
@@ -258,6 +261,8 @@ class DockerContainer(object):
         json_obj = {
             'did': self.did,
             'name': self.name,
+            'domain': self.domain,
+            'fqdn': self.fqdn,
             'details': self.details,
             'nsenter_pid': self.nsented_pid,
             'mid': self.mid,
@@ -298,6 +303,8 @@ class DockerContainer(object):
             environment_id=json_obj['eid'] if json_obj['eid'] else None,
             team_id=json_obj['tid'] if json_obj['tid'] else None,
             name=json_obj['name'] if json_obj['name'] else None,
+            domain=json_obj['domain'] if json_obj['domain'] else None,
+            fqdn=json_obj['fqdn'] if json_obj['fqdn'] else None,
             details=json_obj['details'] if json_obj['details'] else None,
             nsenter_pid=json_obj['nsenter_pid'] if json_obj['nsenter_pid'] else None,
             processs=processs,
@@ -305,6 +312,72 @@ class DockerContainer(object):
             nics=nics,
             last_nics=last_nics
         )
+
+    def ethtool(self, iptable_nic):
+        if os.getuid() != 0:
+            LOGGER.warning("You need to have root privileges to sniff containers namespace.")
+        elif iptable_nic is None or 'name' not in iptable_nic or iptable_nic['name'] is None:
+            LOGGER.error("nic name not provided on ethtool input.")
+        else:
+            if _platform == "linux" or _platform == "linux2":
+                with Namespace(self.nsented_pid, 'net'):
+                    bytes = subprocess.check_output(['ethtool', iptable_nic['name']])
+                tmpfilename = tempfile.gettempdir() + os.sep + self.did + '.tmp'
+                with open(tmpfilename, 'wb') as tmpfile:
+                    tmpfile.write(bytes)
+                    tmpfile.close()
+                with open(tmpfilename, 'r') as tmpfile:
+                    text = tmpfile.readlines()
+                    tmpfile.close()
+                os.remove(tmpfilename)
+            for line in text:
+                if "Duplex" in line:
+                    iptable_nic['duplex'] = line.split('Duplex: ')[1].replace('\n', '')
+                elif "Speed" in line:
+                    iptable_nic['speed'] = line.split('Speed: ')[1].split('Mb/s')[0]
+        return iptable_nic
+
+    def ifconfig(self):
+        ret = []
+        if os.getuid() != 0:
+            LOGGER.warning("You need to have root privileges to sniff containers namespace.")
+        else:
+            if _platform == "linux" or _platform == "linux2":
+                with Namespace(self.nsented_pid, 'net'):
+                    bytes = subprocess.check_output(['ifconfig'])
+                tmpfilename = tempfile.gettempdir() + os.sep + self.did + '.tmp'
+                with open(tmpfilename, 'wb') as tmpfile:
+                    tmpfile.write(bytes)
+                    tmpfile.close()
+                with open(tmpfilename, 'r') as tmpfile:
+                    text = tmpfile.readlines()
+                    tmpfile.close()
+                os.remove(tmpfilename)
+            current_card = None
+            for line in text:
+                if "Link encap" in line:
+                    card_name = line.split('Link encap')[0].replace(' ', '')
+                    if current_card is None:
+                        current_card = {'name': card_name}
+                    else:
+                        ret.append(current_card)
+                        current_card = {'name': card_name}
+                    if "HWaddr" in line:
+                        current_card['mac_addr'] = line.split('HWaddr')[1].replace(' ', '').replace('\n', '')
+                elif "inet addr" in line:
+                    if "Bcast" in line:
+                        current_card['ipv4_addr'] = line.split('inet addr:')[1].split('Bcast')[0].replace(' ', '')
+                    else:
+                        current_card['ipv4_addr'] = line.split('inet addr:')[1].split('Mask')[0].replace(' ', '')
+                    current_card['ipv4_mask'] = line.split('Mask:')[1].replace('\n', '')
+                elif "MTU" in line:
+                    current_card['mtu'] = line.split('MTU:')[1].split('Metric')[0].replace(' ', '')
+                    if "MULTICAST" in line:
+                        current_card['multicast'] = True
+                    else:
+                        current_card['multicast'] = False
+            ret.append(current_card)
+            return ret
 
     def netstat(self):
         ret = []
@@ -368,18 +441,22 @@ class DockerContainer(object):
                         })
             else:
                 LOGGER.warning("Containers namespace sniff enabled on Linux only.")
-
         return ret
 
     def update(self, cli):
         self.last_processs = copy.deepcopy(self.processs)
+        self.last_nics = copy.deepcopy(self.nics)
         self.sniff(cli)
 
     def sniff(self, cli):
         self.processs = []
         self.new_processs = []
+        self.nics = []
 
         c_netstat = self.netstat()
+        c_ipnics = []
+        for iptable in self.ifconfig():
+            c_ipnics.append(self.ethtool(iptable))
         c_top = cli.top(self.did)
 
         for processTop in c_top['Processes']:
@@ -400,7 +477,29 @@ class DockerContainer(object):
             else:
                 self.new_processs.append(a_process)
             self.processs.append(a_process)
-        #TODO: ethtool + container network details
+
+        for ip_nic in c_ipnics:
+            if 'ipv4_addr' in ip_nic and 'ipv4_mask' in ip_nic:
+                ipv4_snet_address = \
+                    str(IPv4Network(ip_nic['ipv4_addr'] + '/' + ip_nic['ipv4_mask'], strict=False).network_address)
+            if self.fqdn is None:
+                if 'Config' in self.details:
+                    self.fqdn = self.details['Config']['Hostname'] + '.' + self.domain
+                else:
+                    self.fqdn = self.name + '.' + self.domain
+
+            nic = NetworkInterfaceCard(
+                name=ip_nic['name'] if 'name' in ip_nic else '',
+                ipv4_address=ip_nic['ipv4_addr'] if 'ipv4_addr' in ip_nic else '',
+                ipv4_fqdn=self.fqdn,
+                ipv4_subnet_addr=ipv4_snet_address if ipv4_snet_address is not None else '',
+                ipv4_subnet_mask=ip_nic['ipv4_mask'] if 'ipv4_mask' in ip_nic else '',
+                mtu=ip_nic['mtu'] if 'mtu' in ip_nic else '',
+                mac_address=ip_nic['mac_addr'] if 'mac_addr' in ip_nic else '',
+                duplex=ip_nic['duplex'].upper() if 'duplex' in ip_nic else '',
+                speed=ip_nic['speed'] if 'speed' in ip_nic else ''
+            )
+            self.nics.append(nic)
 
 
 class DockerHost(object):
@@ -537,8 +636,8 @@ class DockerHost(object):
             c_name = c_inspect['Name'].split('/')[1]
             c_nsenterpid = c_inspect['State']['Pid']
 
-            docker_container = DockerContainer(dcontainer_id=c_did, name=c_name, nsenter_pid=c_nsenterpid,
-                                               details=c_inspect)
+            docker_container = DockerContainer(dcontainer_id=c_did, name=c_name, domain=self.hostname,
+                                               nsenter_pid=c_nsenterpid, details=c_inspect)
 
             if docker_container in self.last_containers:
                 for last_container in self.last_containers:

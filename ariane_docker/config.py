@@ -35,8 +35,8 @@ class Config(object):
         self.rbmq_password = None
         self.rbmq_vhost = None
 
-        self.sleeping_period = None
-        self.log_conf_file_path = None
+        self.sleeping_period = 20
+        self.log_conf_file_path = "/etc/ariane/adocker_logging.json"
 
         self.docker_client_url = 'unix://var/run/docker.sock'
         self.docker_client_version = 'auto'
@@ -90,7 +90,12 @@ class Config(object):
             raise exceptions.ArianeDockerConfigMandatorySectionMissingError('ariane_server')
 
         if 'ariane_docker' in config:
-            self.docker_client_url = config['ariane_docker']['client_url']
+            if 'sleeping_period' in config['ariane_docker'] and config['ariane_docker']['sleeping_period']:
+                self.sleeping_period = config['ariane_docker']['sleeping_period']
+            if 'client_url' in config['ariane_docker'] and config['ariane_docker']['client_url']:
+                self.docker_client_url = config['ariane_docker']['client_url']
+            if 'log_conf_file_path' in config['ariane_docker'] and config['ariane_docker']['log_conf_file_path']:
+                self.log_conf_file_path = config['ariane_docker']['log_conf_file_path']
 
         if ariane_server_missing_fields.__len__() > 0:
             raise exceptions.ArianeDockerConfigMandatoryFieldsMissingError(ariane_server_missing_fields)

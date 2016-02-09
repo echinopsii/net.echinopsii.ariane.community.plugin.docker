@@ -20,7 +20,6 @@ import json
 import logging
 import logging.config
 import socket
-import sys
 import signal
 import time
 from ariane_docker.config import Config
@@ -31,13 +30,13 @@ __author__ = 'mffrench'
 ariane_connector = None
 config_path = "/etc/ariane/adocker_configuration.json"
 ariane_docker_config = None
-system_gear = None
+docker_host_gear = None
 
 
 def shutdown_handle(signum, frame):
     LOGGER.info("Ariane Docker@" + socket.gethostname() + " is stopping...")
-    if system_gear is not None:
-        system_gear.stop().get()
+    if docker_host_gear is not None:
+        docker_host_gear.stop().get()
     if ariane_connector is not None:
         time.sleep(5)
         ariane_connector.stop()

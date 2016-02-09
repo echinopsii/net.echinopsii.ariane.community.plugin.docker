@@ -10,8 +10,8 @@
         "rbmq_vhost": "/ariane"
     },
     "ariane_docker": {
-        "sleeping_period": 20,
+        "sleeping_period": 60,
+        "log_conf_file_path": "/etc/ariane/adocker_logging.json",
         "client_url": "unix://var/run/docker.sock"
     }
 }
-

@@ -26,6 +26,7 @@ from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
 from ariane_clip3.mapping import ContainerService, Container, NodeService, Node, EndpointService
+from ariane_procos.config import SubnetConfig
 from ariane_procos.system import NetworkInterfaceCard
 from components import DockerComponent
 from docker import DockerContainer
@@ -125,130 +126,160 @@ class DirectoryGear(InjectorGearSkeleton):
                     LOGGER.warning(nic_name + ' NIC not found in Ariane directories !')
 
     @staticmethod
+    def sync_docker_container_team(docker_container):
+        team_from_conf = docker_container.extract_team_from_env_vars()
+        if team_from_conf is not None:
+            team_from_ariane = TeamService.find_team(team_name=team_from_conf[DockerContainer.ariane_team_name])
+            if team_from_ariane is None:
+                team_from_ariane = Team(
+                    name=team_from_conf[DockerContainer.ariane_team_name],
+                    color_code=team_from_conf[DockerContainer.ariane_team_cc],
+                    description=team_from_conf[DockerContainer.ariane_team_desc]
+                )
+                team_from_ariane.save()
+            docker_container.team = team_from_ariane
+            docker_container.tid = team_from_ariane.id
+        else:
+            LOGGER.warning("Team is not specified in the docker container ( " + docker_container.name +
+                           " ) environment variables !")
+
+    @staticmethod
+    def sync_docker_container_env(docker_container):
+        env_from_conf = docker_container.extract_env_from_env_vars()
+        if env_from_conf is not None:
+            env_from_ariane = EnvironmentService.find_environment(
+                env_name=env_from_conf[DockerContainer.ariane_environment_name]
+            )
+            if env_from_ariane is None:
+                env_from_ariane = Environment(
+                    name=env_from_conf[DockerContainer.ariane_environment_name],
+                    color_code=env_from_conf[DockerContainer.ariane_environment_cc],
+                    description=env_from_conf[DockerContainer.ariane_environment_desc]
+                )
+                env_from_ariane.save()
+            docker_container.environment = env_from_ariane
+            docker_container.eid = env_from_ariane.id
+        else:
+            LOGGER.warning("Environment is not specified in the docker container ( " + docker_container.name +
+                           " ) environment variables !")
+
+    @staticmethod
+    def sync_docker_container_ost(docker_container):
+        ost_from_conf = docker_container.extract_os_type_from_env_vars()
+        if ost_from_conf is not None:
+            ost_from_ariane = OSTypeService.find_ostype(ost_name=ost_from_conf[DockerContainer.ariane_ost_name])
+            if ost_from_ariane is None:
+                cmp_from_ariane = CompanyService.find_company(
+                    cmp_name=ost_from_conf[DockerContainer.ariane_ost_scmp_name]
+                )
+                if cmp_from_ariane is None:
+                    cmp_from_ariane = Company(
+                        name=ost_from_conf[DockerContainer.ariane_ost_scmp_name],
+                        description=ost_from_conf[DockerContainer.ariane_ost_scmp_desc]
+                    )
+                    cmp_from_ariane.save()
+                ost_from_ariane = OSType(
+                    name=ost_from_conf[DockerContainer.ariane_ost_name],
+                    architecture=ost_from_conf[DockerContainer.ariane_ost_arc],
+                    os_type_company_id=cmp_from_ariane.id
+                )
+                ost_from_ariane.save()
+            docker_container.ostid = ost_from_ariane.id
+            docker_container.ost = ost_from_ariane
+        else:
+            LOGGER.warning("OS Type is not specified in the docker container ( " + docker_container.name +
+                           " ) environment variables !")
+
+    @staticmethod
+    def sync_docker_container_osi(docker_container):
+        osi_from_ariane = OSInstanceService.find_os_instance(
+            osi_name=docker_container.name + '.' + DockerHostGear.hostname
+        )
+        if osi_from_ariane is None:
+            env_ids = [docker_container.eid] if docker_container.eid is not None else None
+            team_ids = [docker_container.tid] if docker_container.tid is not None else None
+            osi_from_ariane = OSInstance(
+                name=docker_container.name + '.' + DockerHostGear.hostname,
+                description=docker_container.name + '@' + DockerHostGear.hostname,
+                admin_gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
+                               docker_container.name + ' /bin/bash]',
+                osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
+                osi_ost_id=docker_container.ostid,
+                osi_environment_ids=env_ids,
+                osi_team_ids=team_ids
+            )
+            osi_from_ariane.save()
+        docker_container.oid = osi_from_ariane.id
+        docker_container.osi = osi_from_ariane
+
+    @staticmethod
+    def sync_docker_container_ip_and_nic(docker_container, docker_host_networks):
+        for docker_container_nic in docker_container.nics:
+            if docker_container_nic not in docker_container.last_nics:
+                ip_address = None
+                nicmcaddr = None
+                if not docker_container_nic.ipv4_address.startswith('127'):
+                    for docker_network in docker_host_networks:
+                        if docker_network.subnet is None and docker_network.subnet_id is not None:
+                            docker_network.subnet = SubnetService.find_subnet(sb_name=docker_network.subnet_id)
+
+                        if docker_network.subnet is not None:
+                            if NetworkInterfaceCard.ip_is_in_subnet(docker_container_nic.ipv4_address,
+                                                                    docker_network.subnet.ip,
+                                                                    docker_network.subnet.mask):
+                                ip_address = IPAddressService.find_ip_address(
+                                    ipa_ip_address=docker_container_nic.ipv4_address,
+                                    ipa_subnet_id=docker_network.subnet.id
+                                )
+                                if ip_address is None:
+                                    ip_address = IPAddress(ip_address=docker_container_nic.ipv4_address,
+                                                           fqdn=docker_container_nic.ipv4_fqdn,
+                                                           ipa_subnet_id=docker_network.subnet.id,
+                                                           ipa_osi_id=docker_container.osi)
+                                    ip_address.save()
+                                    docker_network.subnet.sync()
+                                else:
+                                    if ip_address.ipa_os_instance_id != docker_container.osi:
+                                        ip_address.ipa_os_instance_id = docker_container.osi
+                                        ip_address.save()
+                                nicmcaddr = docker_container_nic.mac_address
+                #else:
+                #    TODO: currently docker container local subnet and routing area.
+                #    TODO: need to enable multiple routing area for one subnet on ariane directories
+                #    loopback_subnet_conf = SubnetConfig(
+                #        name=docker_container.name + "." + docker_container.domain + ".loopback",
+                #        description=docker_container.name + "." + docker_container.domain + " loopback subnet",
+                #        subnet_ip="127.0.0.0",
+                #        subnet_mask="255.0.0.0"
+                #    )
+                #    pass
+
+                if nicmcaddr is not None and nicmcaddr:
+                    nic2save = NICardService.find_niCard(nic_mac_Address=nicmcaddr)
+                    if nic2save is None:
+                        nic2save = NICard(
+                            name=docker_container.fqdn+"."+docker_container_nic.name,
+                            macAddress=nicmcaddr,
+                            duplex=docker_container_nic.duplex,
+                            speed=docker_container_nic.speed,
+                            mtu=docker_container_nic.mtu,
+                            nic_osi_id=docker_container.osi.id,
+                            nic_ipa_id=ip_address.id if ip_address is not None else None
+                        )
+                    else:
+                        nic2save.nic_ipa_id = ip_address.id if ip_address is not None else None
+                    nic2save.save()
+                    docker_container_nic.nic_id = nic2save.id
+
+    @staticmethod
     def sync_docker_containers(docker_host):
         for docker_container in docker_host.new_containers:
-            team_from_conf = docker_container.extract_team_from_env_vars()
-            if team_from_conf is not None:
-                team_from_ariane = TeamService.find_team(team_name=team_from_conf[DockerContainer.ariane_team_name])
-                if team_from_ariane is None:
-                    team_from_ariane = Team(
-                        name=team_from_conf[DockerContainer.ariane_team_name],
-                        color_code=team_from_conf[DockerContainer.ariane_team_cc],
-                        description=team_from_conf[DockerContainer.ariane_team_desc]
-                    )
-                    team_from_ariane.save()
-                docker_container.team = team_from_ariane
-                docker_container.tid = team_from_ariane.id
-            else:
-                LOGGER.warning("Team is not specified in the docker container ( " + docker_container.name +
-                               " ) environment variables !")
-
-            env_from_conf = docker_container.extract_env_from_env_vars()
-            if env_from_conf is not None:
-                env_from_ariane = EnvironmentService.find_environment(
-                    env_name=env_from_conf[DockerContainer.ariane_environment_name]
-                )
-                if env_from_ariane is None:
-                    env_from_ariane = Environment(
-                        name=env_from_conf[DockerContainer.ariane_environment_name],
-                        color_code=env_from_conf[DockerContainer.ariane_environment_cc],
-                        description=env_from_conf[DockerContainer.ariane_environment_desc]
-                    )
-                    env_from_ariane.save()
-                docker_container.environment = env_from_ariane
-                docker_container.eid = env_from_ariane.id
-            else:
-                LOGGER.warning("Environment is not specified in the docker container ( " + docker_container.name +
-                               " ) environment variables !")
-
-            ost_from_conf = docker_container.extract_os_type_from_env_vars()
-            if ost_from_conf is not None:
-                ost_from_ariane = OSTypeService.find_ostype(ost_name=ost_from_conf[DockerContainer.ariane_ost_name])
-                if ost_from_ariane is None:
-                    cmp_from_ariane = CompanyService.find_company(
-                        cmp_name=ost_from_conf[DockerContainer.ariane_ost_scmp_name]
-                    )
-                    if cmp_from_ariane is None:
-                        cmp_from_ariane = Company(
-                            name=ost_from_conf[DockerContainer.ariane_ost_scmp_name],
-                            description=ost_from_conf[DockerContainer.ariane_ost_scmp_desc]
-                        )
-                        cmp_from_ariane.save()
-                    ost_from_ariane = OSType(
-                        name=ost_from_conf[DockerContainer.ariane_ost_name],
-                        architecture=ost_from_conf[DockerContainer.ariane_ost_arc],
-                        os_type_company_id=cmp_from_ariane.id
-                    )
-                    ost_from_ariane.save()
-                docker_container.ostid = ost_from_ariane.id
-                docker_container.ost = ost_from_ariane
-            else:
-                LOGGER.warning("OS Type is not specified in the docker container ( " + docker_container.name +
-                               " ) environment variables !")
-
-            osi_from_ariane = OSInstanceService.find_os_instance(
-                osi_name=docker_container.name + '.' + DockerHostGear.hostname
-            )
-            if osi_from_ariane is None:
-                env_ids = [docker_container.eid] if docker_container.eid is not None else None
-                team_ids = [docker_container.tid] if docker_container.tid is not None else None
-                osi_from_ariane = OSInstance(
-                    name=docker_container.name + '.' + DockerHostGear.hostname,
-                    description=docker_container.name + '@' + DockerHostGear.hostname,
-                    admin_gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                                   docker_container.name + ' /bin/bash]',
-                    osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
-                    osi_ost_id=docker_container.ostid,
-                    osi_environment_ids=env_ids,
-                    osi_team_ids=team_ids
-                )
-                osi_from_ariane.save()
-
-            for nic in docker_container.nics:
-                for docker_network in docker_host.networks:
-                    if docker_network.subnet is None and docker_network.subnet_id is not None:
-                        docker_network.subnet = SubnetService.find_subnet(sb_name=docker_network.subnet_id)
-
-                    if docker_network.subnet is not None:
-                        if NetworkInterfaceCard.ip_is_in_subnet(nic.ipv4_address,
-                                                                docker_network.subnet.ip, docker_network.subnet.mask):
-                            ip_address = IPAddressService.find_ip_address(ipa_ip_address=nic.ipv4_address,
-                                                                          ipa_subnet_id=docker_network.subnet.id)
-                            if ip_address is None:
-                                ip_address = IPAddress(ip_address=nic.ipv4_address, fqdn=nic.ipv4_fqdn,
-                                                       ipa_subnet_id=docker_network.subnet.id,
-                                                       ipa_osi_id=osi_from_ariane.id)
-                                ip_address.save()
-                                docker_network.subnet.sync()
-                            else:
-                                if ip_address.ipa_os_instance_id != osi_from_ariane.id:
-                                    ip_address.ipa_os_instance_id = osi_from_ariane.id
-                                    ip_address.save()
-
-                            if (nic.mac_address is None or not nic.mac_address) or nic.name == "lo":
-                                nicmcaddr = nic.ipv4_fqdn
-                            else:
-                                nicmcaddr = nic.mac_address
-
-                            if nicmcaddr is not None and nicmcaddr:
-                                nic2save = NICardService.find_niCard(nic_mac_Address=nicmcaddr)
-                                if nic2save is None:
-                                    nic2save = NICard(
-                                        name=docker_container.fqdn+"."+nic.name,
-                                        macAddress=nicmcaddr,
-                                        duplex=nic.duplex,
-                                        speed=nic.speed,
-                                        mtu=nic.mtu,
-                                        nic_osi_id=osi_from_ariane.id,
-                                        nic_ipa_id=ip_address.id if ip_address is not None else None
-                                    )
-                                else:
-                                    nic2save.nic_ipa_id = ip_address.id if ip_address is not None else None
-                                nic2save.save()
-
-            osi_from_ariane.sync()
-            docker_container.oid = osi_from_ariane.id
-            docker_container.osi = osi_from_ariane
+            DirectoryGear.sync_docker_container_team(docker_container)
+            DirectoryGear.sync_docker_container_env(docker_container)
+            DirectoryGear.sync_docker_container_ost(docker_container)
+            DirectoryGear.sync_docker_container_osi(docker_container)
+            DirectoryGear.sync_docker_container_ip_and_nic(docker_container, docker_host.networks)
+            docker_container.osi.sync()
 
         for docker_container in docker_host.last_containers:
             if docker_container not in docker_host.containers:
@@ -263,7 +294,19 @@ class DirectoryGear(InjectorGearSkeleton):
                 if osi_from_ariane is not None:
                     osi_from_ariane.remove()
             else:
-                pass
+                for nic in docker_container.last_nics:
+                    if nic not in docker_container.nics:
+                        nic2rm = NICardService.find_niCard(nic_id=nic.nic_id)
+                        if nic2rm is not None:
+                            ip2rm = IPAddressService.find_ip_address(ipa_id=nic2rm.nic_ipa_id)
+                            if ip2rm is not None:
+                                ip2rm.remove()
+                            else:
+                                LOGGER.warning("IP " + ip2rm.ip_address + " already removed !?")
+                            nic2rm.remove()
+                        else:
+                            LOGGER.warning("NIC " + nic2rm.macAddress + " already removed !?")
+                DirectoryGear.sync_docker_container_ip_and_nic(docker_container, docker_host.networks)
 
     def update_ariane_directories(self, docker_host):
         if docker_host.networks != docker_host.last_networks:

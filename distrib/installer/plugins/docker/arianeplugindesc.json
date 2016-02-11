@@ -1,0 +1,22 @@
+{
+    "id": "ariane.community.plugin.docker",
+    "version": "master.SNAPSHOT",
+    "type": "community",
+    "distribs": [
+        "master.SNAPSHOT"
+    ],
+    "hook": {
+        "package": "plugins.docker",
+        "module": "dockerProcessor",
+        "class": "dockerProcessor"
+    },
+    "environment": [
+        {
+            "sqlScriptFP": "resources/sqlscripts/plugins/docker/idm_plugin_docker_insert.sql",
+            "deployCmdFP": "None",
+            "templateFP": "None",
+            "targetConf" : "None",
+            "defaultValuesFP": "None"
+        }
+    ]
+}

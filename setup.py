@@ -23,7 +23,7 @@ setup(name='ariane_docker',
       download_url='https://github.com/echinopsii/net.echinopsii.ariane.community.plugin.docker.git/tarball/0.1.0-b01',
       packages=['ariane_procos'],
       license='AGPLv3',
-      install_requires=['docker-py>=1.6.0', 'nsenter>=0.2', 'pykka>=1.2.1', 'ariane_clip3==0.1.1-b01'],
+      install_requires=['docker-py>=1.6.0', 'nsenter>=0.2', 'pykka>=1.2.1', 'ariane_procos', 'ariane_clip3==0.1.1-b01'],
       package_data={'': ['LICENSE', 'README.md']},
       classifiers=[
           'Development Status :: 4 - Beta',

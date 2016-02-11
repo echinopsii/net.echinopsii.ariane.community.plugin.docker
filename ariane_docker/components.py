@@ -17,11 +17,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import json
 import logging
+#import pprint
 import socket
 import traceback
 from ariane_clip3.injector import InjectorComponentSkeleton, InjectorCachedComponent
 import datetime
-from docker import DockerHost
+from ariane_docker.docker import DockerHost
 
 __author__ = 'mffrench'
 
@@ -47,7 +48,10 @@ class DockerComponent(InjectorComponentSkeleton):
             attached_gear_id=attached_gear_id
         )
         cached_blob = self.component_cache_actor.blob.get()
-        if cached_blob is not None:
+        if cached_blob is not None and cached_blob:
+            #LOGGER.debug("------------------------------------------------------------------")
+            #LOGGER.debug("Cached blob is :\n" + pprint.pformat(cached_blob))
+            #LOGGER.debug("------------------------------------------------------------------")
             self.docker_host = DockerHost.from_json(cached_blob)
         else:
             self.docker_host = DockerHost()
@@ -55,7 +59,11 @@ class DockerComponent(InjectorComponentSkeleton):
         self.version = 0
 
     def data_blob(self):
-        return json.dumps(self.docker_host.to_json())
+        data_blob = self.docker_host.to_json()
+        #LOGGER.debug("------------------------------------------------------------------")
+        #LOGGER.debug("Cached blob is :\n" + pprint.pformat(data_blob))
+        #LOGGER.debug("------------------------------------------------------------------")
+        return json.dumps(data_blob)
 
     def sniff(self, synchronize_with_ariane_dbs=True):
         try:

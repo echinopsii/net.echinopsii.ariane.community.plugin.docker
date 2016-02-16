@@ -122,13 +122,16 @@ class DirectoryGear(InjectorGearSkeleton):
                     docker_network.nic_id = nic.id
                     docker_network.nic = nic
                     #SYNC SUBNET
-                    ip_address = IPAddressService.find_ip_address(ipa_id=nic.nic_ipa_id)
-                    subnet = SubnetService.find_subnet(sb_name=ip_address.ipa_subnet_id)
-                    if subnet is not None:
-                        docker_network.subnet_id = subnet.id
-                        docker_network.subnet = subnet
+                    if nic.nic_ipa_id > 0:
+                        ip_address = IPAddressService.find_ip_address(ipa_id=nic.nic_ipa_id)
+                        subnet = SubnetService.find_subnet(sb_id=ip_address.ipa_subnet_id)
+                        if subnet is not None:
+                            docker_network.subnet_id = subnet.id
+                            docker_network.subnet = subnet
+                        else:
+                            LOGGER.warning('docker subnet for nic ' + nic_name + ' not found in Ariane directories !')
                     else:
-                        LOGGER.warning('docker subnet for nic ' + nic_name + ' not found in Ariane directories !')
+                        LOGGER.warning('No IP defined for NIC ' + nic_name + ' in Ariane directories !')
                 else:
                     LOGGER.warning(nic_name + ' NIC not found in Ariane directories !')
 
@@ -144,17 +147,29 @@ class DirectoryGear(InjectorGearSkeleton):
                     color_code=team_from_conf[DockerContainer.ariane_team_cc],
                     description=team_from_conf[DockerContainer.ariane_team_desc]
                 )
-                team_from_ariane.save()
-            docker_container.team = team_from_ariane
-            docker_container.tid = team_from_ariane.id
+                try:
+                    team_from_ariane.save()
+                except Exception as e:
+                    LOGGER.warning("Unable to save team (" + str(team_from_conf) + ") in Ariane Directories !")
+                    LOGGER.warning(e.__str__())
+                    LOGGER.warning(traceback.format_exc())
+
+            if team_from_ariane is not None:
+                docker_container.team = team_from_ariane
+                docker_container.tid = team_from_ariane.id
         else:
             LOGGER.warning("Team is not specified in the docker container ( " + docker_container.name +
                            " ) environment variables !")
 
+        if docker_container.team is None and DockerHostGear.docker_host_osi.team_ids.__len__()>0:
+            LOGGER.warning("Docker container team will be herited from first host team !")
+            docker_container.team = TeamService.find_team(team_id=DockerHostGear.docker_host_osi.team_ids[0])
+            docker_container.tid = DockerHostGear.docker_host_osi.team_ids[0]
+
     @staticmethod
     def sync_docker_container_env(docker_container):
         LOGGER.debug("DirectoryGear.sync_docker_container_env: start")
-        env_from_conf = docker_container.extract_env_from_env_vars()
+        env_from_conf = docker_container.extract_environment_from_env_vars()
         if env_from_conf is not None:
             env_from_ariane = EnvironmentService.find_environment(
                 env_name=env_from_conf[DockerContainer.ariane_environment_name]
@@ -165,12 +180,26 @@ class DirectoryGear(InjectorGearSkeleton):
                     color_code=env_from_conf[DockerContainer.ariane_environment_cc],
                     description=env_from_conf[DockerContainer.ariane_environment_desc]
                 )
-                env_from_ariane.save()
-            docker_container.environment = env_from_ariane
-            docker_container.eid = env_from_ariane.id
+                try:
+                    env_from_ariane.save()
+                except Exception as e:
+                    LOGGER.warning("Unable to save environment (" + str(env_from_conf) + ") in Ariane Directories !")
+                    LOGGER.warning(e.__str__())
+                    LOGGER.warning(traceback.format_exc())
+
+            if env_from_ariane is not None:
+                docker_container.environment = env_from_ariane
+                docker_container.eid = env_from_ariane.id
         else:
             LOGGER.warning("Environment is not specified in the docker container ( " + docker_container.name +
                            " ) environment variables !")
+
+        if docker_container.environment is None and DockerHostGear.docker_host_osi.environment_ids.__len__()>0:
+            LOGGER.warning("Docker container environment will be herited from first host environment !")
+            docker_container.environment = EnvironmentService.find_environment(
+                env_id=DockerHostGear.docker_host_osi.environment_ids[0]
+            )
+            docker_container.eid = DockerHostGear.docker_host_osi.team_ids[0]
 
     @staticmethod
     def sync_docker_container_ost(docker_container):
@@ -228,14 +257,14 @@ class DirectoryGear(InjectorGearSkeleton):
         LOGGER.debug("DirectoryGear.sync_docker_container_ip_and_nic: start")
         for docker_container_nic in docker_container.nics:
             if docker_container_nic not in docker_container.last_nics:
-                ip_address = None
-                nicmcaddr = None
                 if not docker_container_nic.ipv4_address.startswith('127'):
+                    #LOGGER.debug(str(docker_container_nic))
                     for docker_network in docker_host_networks:
                         if docker_network.subnet is None and docker_network.subnet_id is not None:
                             docker_network.subnet = SubnetService.find_subnet(sb_name=docker_network.subnet_id)
 
                         if docker_network.subnet is not None:
+                            dock_subnet = docker_network.subnet
                             if NetworkInterfaceCard.ip_is_in_subnet(docker_container_nic.ipv4_address,
                                                                     docker_network.subnet.ip,
                                                                     docker_network.subnet.mask):
@@ -247,7 +276,7 @@ class DirectoryGear(InjectorGearSkeleton):
                                     ip_address = IPAddress(ip_address=docker_container_nic.ipv4_address,
                                                            fqdn=docker_container_nic.ipv4_fqdn,
                                                            ipa_subnet_id=docker_network.subnet.id,
-                                                           ipa_osi_id=docker_container.osi)
+                                                           ipa_osi_id=docker_container.osi.id)
                                     ip_address.save()
                                     docker_network.subnet.sync()
                                 else:
@@ -255,9 +284,11 @@ class DirectoryGear(InjectorGearSkeleton):
                                         ip_address.ipa_os_instance_id = docker_container.osi
                                         ip_address.save()
                                 nicmcaddr = docker_container_nic.mac_address
+                                #LOGGER.debug(str(ip_address))
                 #else:
                 #    TODO: currently docker container local subnet and routing area.
                 #    TODO: need to enable multiple routing area for one subnet on ariane directories
+                #    NOTE: anyway this feature will probably not needed as docker routing is done from the host
                 #    loopback_subnet_conf = SubnetConfig(
                 #        name=docker_container.name + "." + docker_container.domain + ".loopback",
                 #        description=docker_container.name + "." + docker_container.domain + " loopback subnet",
@@ -266,22 +297,28 @@ class DirectoryGear(InjectorGearSkeleton):
                 #    )
                 #    pass
 
-                if nicmcaddr is not None and nicmcaddr:
-                    nic2save = NICardService.find_niCard(nic_mac_Address=nicmcaddr)
-                    if nic2save is None:
-                        nic2save = NICard(
-                            name=docker_container.fqdn+"."+docker_container_nic.name,
-                            macAddress=nicmcaddr,
-                            duplex=docker_container_nic.duplex,
-                            speed=docker_container_nic.speed,
-                            mtu=docker_container_nic.mtu,
-                            nic_osi_id=docker_container.osi.id,
-                            nic_ipa_id=ip_address.id if ip_address is not None else None
-                        )
-                    else:
-                        nic2save.nic_ipa_id = ip_address.id if ip_address is not None else None
-                    nic2save.save()
-                    docker_container_nic.nic_id = nic2save.id
+                                if dock_subnet is not None:
+                                    docker_container.osi.add_subnet(dock_subnet)
+
+                                if nicmcaddr is not None and nicmcaddr:
+                                    nic2save = NICardService.find_niCard(nic_mac_Address=nicmcaddr)
+                                    if nic2save is None:
+                                        nic2save = NICard(
+                                            name=docker_container.domain + "." + docker_container.name + "." +
+                                                 docker_container_nic.name,
+                                            macAddress=nicmcaddr,
+                                            duplex=docker_container_nic.duplex,
+                                            speed=docker_container_nic.speed,
+                                            mtu=docker_container_nic.mtu,
+                                            nic_osi_id=docker_container.osi.id,
+                                            nic_ipa_id=ip_address.id if ip_address is not None else None
+                                        )
+                                        #LOGGER.debug(str(nic2save))
+                                        nic2save.save()
+                                    else:
+                                        nic2save.nic_ipa_id = ip_address.id if ip_address is not None else None
+                                        nic2save.sync()
+                                    docker_container_nic.nic_id = nic2save.id
 
     @staticmethod
     def sync_docker_containers(docker_host):

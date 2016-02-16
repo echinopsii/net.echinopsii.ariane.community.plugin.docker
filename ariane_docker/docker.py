@@ -412,6 +412,7 @@ class DockerContainer(object):
                     if line.startswith('tcp') or line.startswith('tcp6') or \
                        line.startswith('udp') or line.startswith('udp6'):
                         fields = line.strip().split()
+                        #LOGGER.debug(line + "( " + str(fields.__len__()) + " )")
                         protocol = fields[0]
                         source_ep = fields[3]
                         if protocol is 'tcp' or protocol is 'udp':
@@ -422,7 +423,13 @@ class DockerContainer(object):
                             split_array_length = split.__len__()
                             source_port = split[split_array_length-1]
                             source_ip = source_ep.split(':'+source_port)[0]
-                        state = fields[5]
+                        if fields.__len__() > 6:
+                            state = fields[5]
+                            pid = fields[6].split('/')[0]
+                        else:
+                            state = 'NONE'
+                            pid = fields[5].split('/')[0]
+                        #LOGGER.debug("state: " + state)
                         if state is not 'LISTEN' and state is not 'CLOSE' and state is not 'NONE':
                             target_ep = fields[4]
                             if protocol is 'tcp' or protocol is 'udp':
@@ -444,7 +451,7 @@ class DockerContainer(object):
                             type = 'SOCK_STREAM'
                         else:
                             type = 'SOCK_DGRAM'
-                        pid = fields[6].split('/')[0]
+
                         ret.append({
                             'pid': pid,
                             'socket': MapSocket(source_ip=source_ip, source_port=source_port,
@@ -505,7 +512,7 @@ class DockerContainer(object):
             nic = NetworkInterfaceCard(
                 name=ip_nic['name'] if 'name' in ip_nic else '',
                 ipv4_address=ip_nic['ipv4_addr'] if 'ipv4_addr' in ip_nic else '',
-                ipv4_fqdn=self.fqdn,
+                ipv4_fqdn=ip_nic['name'] + '.' + self.fqdn if 'name' in ip_nic else self.fqdn,
                 ipv4_subnet_addr=ipv4_snet_address if ipv4_snet_address is not None else '',
                 ipv4_subnet_mask=ip_nic['ipv4_mask'] if 'ipv4_mask' in ip_nic else '',
                 mtu=ip_nic['mtu'] if 'mtu' in ip_nic else '',

@@ -19,7 +19,7 @@ import copy
 from ipaddress import IPv4Network
 import logging
 import os
-#import pprint
+import pprint
 import subprocess
 import tempfile
 from sys import platform as _platform
@@ -54,7 +54,7 @@ class DockerNetwork(object):
         return self.nid == other.nid
 
     def to_json(self):
-        LOGGER.debug("DockerNetwork.to_json: start")
+        #LOGGER.debug("DockerNetwork.to_json")
         json_obj = {
             'nid': self.nid,
             'driver': self.driver,
@@ -69,7 +69,7 @@ class DockerNetwork(object):
 
     @staticmethod
     def from_json(json_obj):
-        LOGGER.debug("DockerNetwork.from_json: start")
+        #LOGGER.debug("DockerNetwork.from_json")
         return DockerNetwork(
             nid=json_obj['nid'] if json_obj['nid'] else None,
             driver=json_obj['driver'] if json_obj['driver'] else None,
@@ -101,7 +101,7 @@ class DockerContainerProcess(object):
         return self.pid == other.pid
 
     def to_json(self):
-        LOGGER.debug("DockerContainerProcess.to_json: start")
+        #LOGGER.debug("DockerContainerProcess.to_json")
         map_socket_2_json = []
         for map_socket in self.map_sockets:
             map_socket_2_json.append(map_socket.to_json())
@@ -120,7 +120,7 @@ class DockerContainerProcess(object):
 
     @staticmethod
     def from_json(json_obj):
-        LOGGER.debug("DockerContainerProcess.from_json: start")
+        #LOGGER.debug("DockerContainerProcess.from_json")
         map_sockets_json = json_obj['map_sockets'] if json_obj['map_sockets'] else []
         map_sockets = []
         for map_socket_json in map_sockets_json:
@@ -189,7 +189,7 @@ class DockerContainer(object):
         pass
 
     def extract_os_type_from_env_vars(self):
-        LOGGER.debug("DockerContainer.extract_os_type_from_env_vars: start")
+        LOGGER.debug("DockerContainer.extract_os_type_from_env_vars")
         ret = None
         if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
             env_vars = self.details['Config']['Env']
@@ -213,7 +213,7 @@ class DockerContainer(object):
         return ret
 
     def extract_environment_from_env_vars(self):
-        LOGGER.debug("DockerContainer.extract_environment_from_env_vars: start")
+        LOGGER.debug("DockerContainer.extract_environment_from_env_vars")
         ret = None
         if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
             env_vars = self.details['Config']['Env']
@@ -233,7 +233,7 @@ class DockerContainer(object):
         return ret
 
     def extract_team_from_env_vars(self):
-        LOGGER.debug("DockerContainer.extract_team_from_env_vars: start")
+        LOGGER.debug("DockerContainer.extract_team_from_env_vars")
         ret = None
         if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
             env_vars = self.details['Config']['Env']
@@ -253,7 +253,7 @@ class DockerContainer(object):
         return ret
 
     def to_json(self):
-        LOGGER.debug("DockerContainer.to_json: start")
+        #LOGGER.debug("DockerContainer.to_json")
         processs_2_json = []
         for process in self.processs:
             processs_2_json.append(process.to_json())
@@ -287,7 +287,7 @@ class DockerContainer(object):
 
     @staticmethod
     def from_json(json_obj):
-        LOGGER.debug("DockerContainer.from_json: start")
+        #LOGGER.debug("DockerContainer.from_json")
         processs_json = json_obj['processs'] if json_obj['processs'] else []
         processs = []
         for process_json in processs_json:
@@ -323,7 +323,7 @@ class DockerContainer(object):
         )
 
     def ethtool(self, iptable_nic):
-        LOGGER.debug("DockerContainer.ethtool: start")
+        LOGGER.debug("DockerContainer.ethtool")
         if os.getuid() != 0:
             LOGGER.warning("You need to have root privileges to sniff containers namespace.")
         elif iptable_nic is None or 'name' not in iptable_nic or iptable_nic['name'] is None:
@@ -348,7 +348,7 @@ class DockerContainer(object):
         return iptable_nic
 
     def ifconfig(self):
-        LOGGER.debug("DockerContainer.ifconfig: start")
+        LOGGER.debug("DockerContainer.ifconfig")
         ret = []
         if os.getuid() != 0:
             LOGGER.warning("You need to have root privileges to sniff containers namespace.")
@@ -391,7 +391,7 @@ class DockerContainer(object):
             return ret
 
     def netstat(self):
-        LOGGER.debug("DockerContainer.netstat: start")
+        LOGGER.debug("DockerContainer.netstat")
         ret = []
         if os.geteuid() != 0:
             LOGGER.warning("You need to have root privileges to sniff containers namespace.")
@@ -412,7 +412,6 @@ class DockerContainer(object):
                     if line.startswith('tcp') or line.startswith('tcp6') or \
                        line.startswith('udp') or line.startswith('udp6'):
                         fields = line.strip().split()
-                        #LOGGER.debug(line + "( " + str(fields.__len__()) + " )")
                         protocol = fields[0]
                         source_ep = fields[3]
                         if protocol is 'tcp' or protocol is 'udp':
@@ -423,14 +422,15 @@ class DockerContainer(object):
                             split_array_length = split.__len__()
                             source_port = split[split_array_length-1]
                             source_ip = source_ep.split(':'+source_port)[0]
+
                         if fields.__len__() > 6:
                             state = fields[5]
                             pid = fields[6].split('/')[0]
                         else:
                             state = 'NONE'
                             pid = fields[5].split('/')[0]
-                        #LOGGER.debug("state: " + state)
-                        if state is not 'LISTEN' and state is not 'CLOSE' and state is not 'NONE':
+
+                        if state != 'LISTEN' and state != 'CLOSE' and state != 'NONE':
                             target_ep = fields[4]
                             if protocol is 'tcp' or protocol is 'udp':
                                 target_ip = target_ep.split(':')[0]
@@ -443,11 +443,13 @@ class DockerContainer(object):
                         else:
                             target_ip = None
                             target_port = None
-                        if protocol is 'tcp' or protocol is 'udp':
+
+                        if protocol == 'tcp' or protocol == 'udp':
                             family = 'AF_INET'
                         else:
                             family = 'AF_INET6'
-                        if protocol is 'tcp' or protocol is 'tcp6':
+
+                        if protocol == 'tcp' or protocol == 'tcp6':
                             type = 'SOCK_STREAM'
                         else:
                             type = 'SOCK_DGRAM'
@@ -462,14 +464,59 @@ class DockerContainer(object):
                 LOGGER.warning("Containers namespace sniff enabled on Linux only.")
         return ret
 
+    def is_in_container_destination(self, mapping_socket):
+        destination_in_container = False
+        if mapping_socket.family == "AF_INET6":
+            for nic in self.nics:
+                if nic.ipv6_address == mapping_socket.destination_ip:
+                    destination_in_container = True
+                    break
+        if not destination_in_container:
+            for nic in self.nics:
+                if nic.ipv4_address == mapping_socket.destination_ip:
+                    destination_in_container = True
+                    break
+        return destination_in_container
+
+    def is_local_destination(self, mapping_socket):
+        destination_is_local = False
+        if mapping_socket.destination_ip is not None and mapping_socket.family == "AF_INET":
+            for nic in self.nics:
+                if NetworkInterfaceCard.ip_is_in_subnet(mapping_socket.destination_ip,
+                                                        nic.ipv4_subnet_addr, nic.ipv4_subnet_mask):
+                    destination_is_local = True
+                    break
+        elif mapping_socket.destination_ip is not None and mapping_socket.family == "AF_INET6":
+            destination_ipv4 = MapSocket.ipv6_2_ipv4(mapping_socket.destination_ip)
+            if destination_ipv4 != mapping_socket.destination_ip:
+                for nic in self.nics:
+                    if NetworkInterfaceCard.ip_is_in_subnet(destination_ipv4,
+                                                            nic.ipv4_subnet_addr, nic.ipv4_subnet_mask):
+                        destination_is_local = True
+                        break
+            else:
+                #TODO: check is ipv6 in subnet ?
+                for nic in self.nics:
+                    if nic.ipv6_address is not None and mapping_socket.destination_ip == nic.ipv6_address:
+                        destination_is_local = True
+                        break
+                    elif NetworkInterfaceCard.ip_is_in_subnet(mapping_socket.destination_ip,
+                                                              nic.ipv4_subnet_addr, nic.ipv4_subnet_mask):
+                        destination_is_local = True
+                        break
+        elif mapping_socket.family == "AF_UNIX":
+            destination_is_local = True
+
+        return destination_is_local
+
     def update(self, cli):
-        LOGGER.debug("DockerContainer.update: start")
+        LOGGER.debug("DockerContainer.update")
         self.last_processs = copy.deepcopy(self.processs)
         self.last_nics = copy.deepcopy(self.nics)
         self.sniff(cli)
 
     def sniff(self, cli):
-        LOGGER.debug("DockerContainer.sniff: start")
+        LOGGER.debug("DockerContainer.sniff")
         self.processs = []
         self.new_processs = []
         self.nics = []
@@ -479,17 +526,21 @@ class DockerContainer(object):
         for iptable in self.ifconfig():
             c_ipnics.append(self.ethtool(iptable))
         c_top = cli.top(self.did)
+        top_processes = c_top['Processes'] if 'Processes' in c_top and c_top['Processes'] is not None else []
 
-        for processTop in c_top['Processes']:
+        if top_processes is None or top_processes.__len__() == 0:
+            #TODO: seems to be a docker python cli bug here
+            top_processes = []
+            LOGGER.warning("No process found for container [" + self.did + "]" + self.name + " !?")
+            LOGGER.warning(pprint.pformat(c_top))
+
+        for processTop in top_processes:
             a_process = DockerContainerProcess(pid=processTop[1])
-            for pid_socket in c_netstat:
-                if pid_socket['pid'] == a_process.pid:
-                    a_process.map_sockets.append(pid_socket['socket'])
             if a_process in self.last_processs:
                 for last_process in self.last_processs:
                     if last_process == a_process:
                         if last_process.mdpid is not None:
-                            a_process.mpdid = last_process.mpdid
+                            a_process.mdpid = last_process.mdpid
                         if last_process.mospid is not None:
                             a_process.mospid = last_process.mospid
                         if last_process.mcid is not None:
@@ -498,6 +549,13 @@ class DockerContainer(object):
             else:
                 self.new_processs.append(a_process)
             self.processs.append(a_process)
+
+            for pid_socket in c_netstat:
+                if pid_socket['pid'] == a_process.pid:
+                    proc_sock = pid_socket['socket']
+                    a_process.map_sockets.append(proc_sock)
+                    if proc_sock not in a_process.last_map_sockets:
+                        a_process.new_map_sockets.append(proc_sock)
 
         for ip_nic in c_ipnics:
             if 'ipv4_addr' in ip_nic and 'ipv4_mask' in ip_nic:
@@ -552,7 +610,7 @@ class DockerHost(object):
         pass
 
     def to_json(self):
-        LOGGER.debug("DockerHost.to_json: start")
+        #LOGGER.debug("DockerHost.to_json")
         containers_2_json = []
         for container in self.containers:
             containers_2_json.append(container.to_json())
@@ -582,7 +640,7 @@ class DockerHost(object):
 
     @staticmethod
     def from_json(json_obj):
-        LOGGER.debug("DockerHost.from_json: start")
+        #LOGGER.debug("DockerHost.from_json")
         containers_json = json_obj['containers'] if json_obj['containers'] else []
         containers = []
         for container_json in containers_json:
@@ -614,13 +672,13 @@ class DockerHost(object):
         )
 
     def update(self, cli):
-        LOGGER.debug("DockerHost.update: start")
+        LOGGER.debug("DockerHost.update")
         self.last_containers = copy.deepcopy(self.containers)
         self.last_networks = copy.deepcopy(self.networks)
         self.sniff(cli)
 
     def sniff(self, cli):
-        LOGGER.debug("DockerHost.sniff: start")
+        LOGGER.debug("DockerHost.sniff")
         self.containers = []
         self.networks = []
         self.new_containers = []

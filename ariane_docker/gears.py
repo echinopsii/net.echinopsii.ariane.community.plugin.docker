@@ -542,7 +542,7 @@ class MappingGear(InjectorGearSkeleton):
                 source_endpoint.remove()
             else:
                 LOGGER.warning("Dead socket (source endpoint : " + str(map_socket.source_endpoint_id) +
-                            ") doesn't exist anymore on DB!")
+                               ") doesn't exist anymore on DB!")
 
         if map_socket.destination_endpoint_id is not None:
             destination_endpoint = EndpointService.find_endpoint(eid=map_socket.destination_endpoint_id)
@@ -550,7 +550,7 @@ class MappingGear(InjectorGearSkeleton):
                 destination_endpoint.remove()
             else:
                 LOGGER.warning("Dead socket (destination endpoint : " + str(map_socket.source_endpoint_id) +
-                            ") doesn't exist anymore on DB!")
+                               ") doesn't exist anymore on DB!")
 
     @staticmethod
     def synchronize_process_sockets(docker_container, process):
@@ -646,8 +646,8 @@ class MappingGear(InjectorGearSkeleton):
     def synchronize_new_containers(docker_container):
         LOGGER.debug("MappingGear.synchronize_new_containers")
         if docker_container.ost is None:
-            if docker_container.ost_id is not None:
-                docker_container.ost = OSTypeService.find_ostype(ost_id=docker_container.ost_id)
+            if docker_container.ostid is not None:
+                docker_container.ost = OSTypeService.find_ostype(ost_id=docker_container.ostid)
 
         product = "Docker Container"
         company = "Docker Inc."

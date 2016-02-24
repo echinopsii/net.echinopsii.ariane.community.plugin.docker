@@ -27,7 +27,7 @@ from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
 from ariane_clip3.mapping import ContainerService, Container, NodeService, Node, EndpointService, Endpoint, Link, \
-    Transport
+    Transport, TransportService
 from ariane_procos.system import NetworkInterfaceCard
 from ariane_docker.components import DockerComponent
 from ariane_docker.docker import DockerContainer
@@ -451,10 +451,10 @@ class MappingGear(InjectorGearSkeleton):
                 target_url = None
 
                 if map_socket.source_endpoint_id is None:
-                    if process.msp is None:
+                    if process.mdp is None:
                         parent_node = NodeService.find_node(nid=process.mdpid)
                     else:
-                        parent_node = process.msp
+                        parent_node = process.mdp
                     if parent_node is not None:
                         source_endpoint = Endpoint(
                             url=source_url,
@@ -463,52 +463,54 @@ class MappingGear(InjectorGearSkeleton):
                         source_endpoint.save()
                         map_socket.source_endpoint_id = source_endpoint.id
                     else:
-                        LOGGER.warnin("Fail to sync parent node for source endpoint " + source_url)
+                        LOGGER.warning("Fail to sync parent node for source endpoint " + source_url)
                 else:
                     source_endpoint = EndpointService.find_endpoint(eid=map_socket.source_endpoint_id)
 
-                if map_socket.destination_ip is not None:
+                if map_socket.destination_ip is not None and map_socket.destination_port is not None:
                     target_url = proto + map_socket.destination_ip + ":" + str(map_socket.destination_port)
 
                 if target_url is not None:
-
-                    if docker_container.is_local_destination(map_socket):
-                        if not docker_container.is_in_container_destination(map_socket):
-                            for endpoint in EndpointService.get_endpoints():
-                                if endpoint.url.startswith(target_url):
-                                    target_endpoint = endpoint
-                                    break
-                        else:
-                            target_local_process = None
-                            mirror_map_socket = None
-                            for dc_process in docker_container.processs:
-                                for m_map_socket in dc_process.map_sockets:
-                                    if (m_map_socket.source_ip + ":" + m_map_socket.source_port) == target_url:
-                                        target_local_process = dc_process
-                                        mirror_map_socket = m_map_socket
+                    if map_socket.destination_endpoint_id is None:
+                        if docker_container.is_local_destination(map_socket):
+                            if not docker_container.is_in_container_destination(map_socket):
+                                for endpoint in EndpointService.get_endpoints():
+                                    if endpoint.url.startswith(target_url):
+                                        target_endpoint = endpoint
                                         break
-                            if target_local_process is not None and mirror_map_socket is not None:
-                                if mirror_map_socket.source_endpoint_id is None:
-                                    if target_local_process.msp is None:
-                                        parent_node = NodeService.find_node(nid=target_local_process.mdpid)
-                                    else:
-                                        parent_node = target_local_process.msp
+                            else:
+                                target_local_process = None
+                                mirror_map_socket = None
+                                for dc_process in docker_container.processs:
+                                    for m_map_socket in dc_process.map_sockets:
+                                        if (m_map_socket.source_ip + ":" + m_map_socket.source_port) == target_url:
+                                            target_local_process = dc_process
+                                            mirror_map_socket = m_map_socket
+                                            break
+                                if target_local_process is not None and mirror_map_socket is not None:
+                                    if mirror_map_socket.source_endpoint_id is None:
+                                        if target_local_process.mdp is None:
+                                            parent_node = NodeService.find_node(nid=target_local_process.mdpid)
+                                        else:
+                                            parent_node = target_local_process.mdp
 
-                                    if parent_node is not None:
-                                        target_endpoint = Endpoint(
-                                            url=target_url,
-                                            parent_node=parent_node
-                                        )
-                                        target_endpoint.save()
-                                        mirror_map_socket.source_endpoint_id = target_endpoint.id
+                                        if parent_node is not None:
+                                            target_endpoint = Endpoint(
+                                                url=target_url,
+                                                parent_node=parent_node
+                                            )
+                                            target_endpoint.save()
+                                            mirror_map_socket.source_endpoint_id = target_endpoint.id
+                                        else:
+                                            LOGGER.warning("Fail to sync parent node for target endpoint " + target_url)
                                     else:
-                                        LOGGER.warning("Fail to sync parent node for target endpoint " + target_url)
-                                else:
-                                    target_endpoint = EndpointService.find_endpoint(
-                                        eid=mirror_map_socket.source_endpoint_id
-                                    )
+                                        target_endpoint = EndpointService.find_endpoint(
+                                            eid=mirror_map_socket.source_endpoint_id
+                                        )
+                        else:
+                            LOGGER.warning("Non local docker link not supported currently !")
                     else:
-                        LOGGER.warning("Non local docker link not supported currently !")
+                        target_endpoint = EndpointService.find_endpoint(map_socket.destination_endpoint_id)
 
                     if source_endpoint is None:
                         LOGGER.warning("Unable to define source endpoint: " + source_url)
@@ -520,9 +522,10 @@ class MappingGear(InjectorGearSkeleton):
                             map_socket.destination_node_id = target_endpoint.parent_node_id
 
                             transport = Transport(name=proto)
-                            transport.save()
+                            if transport.id is None:
+                                transport.save()
 
-                            if transport is not None:
+                            if transport.id is not None:
                                 link = Link(source_endpoint_id=map_socket.source_endpoint_id,
                                             target_endpoint_id=map_socket.destination_endpoint_id,
                                             transport_id=transport.id)
@@ -539,18 +542,20 @@ class MappingGear(InjectorGearSkeleton):
         if map_socket.source_endpoint_id is not None:
             source_endpoint = EndpointService.find_endpoint(eid=map_socket.source_endpoint_id)
             if source_endpoint is not None:
+                LOGGER.debug("Remove (source) endpoint " + source_endpoint.url)
                 source_endpoint.remove()
             else:
                 LOGGER.warning("Dead socket (source endpoint : " + str(map_socket.source_endpoint_id) +
                                ") doesn't exist anymore on DB!")
 
-        if map_socket.destination_endpoint_id is not None:
-            destination_endpoint = EndpointService.find_endpoint(eid=map_socket.destination_endpoint_id)
-            if destination_endpoint is not None:
-                destination_endpoint.remove()
-            else:
-                LOGGER.warning("Dead socket (destination endpoint : " + str(map_socket.source_endpoint_id) +
-                               ") doesn't exist anymore on DB!")
+        #if map_socket.destination_endpoint_id is not None:
+        #    destination_endpoint = EndpointService.find_endpoint(eid=map_socket.destination_endpoint_id)
+        #    if destination_endpoint is not None:
+        #        LOGGER.debug("Remove (destination) endpoint " + destination_endpoint.url)
+        #        destination_endpoint.remove()
+        #    else:
+        #        LOGGER.warning("Dead socket (destination endpoint : " + str(map_socket.source_endpoint_id) +
+        #                       ") doesn't exist anymore on DB!")
 
     @staticmethod
     def synchronize_process_sockets(docker_container, process):
@@ -598,7 +603,7 @@ class MappingGear(InjectorGearSkeleton):
             )
             process_node.save()
             process.mdpid = process_node.id
-            process.msp = process_node
+            process.mdp = process_node
             process.mospid = mosp.id
             process.mos = mosp
         else:
@@ -633,14 +638,17 @@ class MappingGear(InjectorGearSkeleton):
                 MappingGear.synchronize_removed_processs_node(docker_container, process)
 
     @staticmethod
-    def synchronize_container_properties(docker_container, mapping_container):
+    def synchronize_container_properties(docker_container):
         LOGGER.debug("MappingGear.synchronize_container_properties")
+        mapping_container = docker_container.mcontainer
         #TODO
         pass
 
     @staticmethod
     def synchronize_existing_containers(docker_container):
         LOGGER.debug("MappingGear.synchronize_existing_containers")
+        MappingGear.synchronize_container_properties(docker_container)
+        MappingGear.synchronize_container_processs(docker_container)
 
     @staticmethod
     def synchronize_new_containers(docker_container):
@@ -672,12 +680,12 @@ class MappingGear(InjectorGearSkeleton):
         LOGGER.debug(pprint.pformat(mapping_container.__dict__))
         docker_container.mid = mapping_container.id
         docker_container.mcontainer = mapping_container
-        MappingGear.synchronize_container_properties(docker_container, mapping_container)
+        MappingGear.synchronize_container_properties(docker_container)
         MappingGear.synchronize_container_processs(docker_container)
 
     @staticmethod
     def synchronize_removed_containers(docker_container):
-        LOGGER.debug("MappingGear.synchronize_removed_containers")
+        LOGGER.debug("MappingGear.synchronize_removed_containers - " + docker_container.name)
         if docker_container.mid is None:
             mapping_container = ContainerService.find_container(
                 primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +

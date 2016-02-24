@@ -557,6 +557,14 @@ class DockerContainer(object):
                     if proc_sock not in a_process.last_map_sockets:
                         a_process.new_map_sockets.append(proc_sock)
 
+            for map_socket in a_process.last_map_sockets:
+                if map_socket not in a_process.new_map_sockets and \
+                   map_socket.destination_node_id is None and \
+                   map_socket.destination_ip is not None and map_socket.destination_port is not None:
+                    LOGGER.debug('Will complete following map_socket this round : ' + map_socket.source_ip + ":" +
+                                 str(map_socket.source_port))
+                    a_process.new_map_sockets.append(map_socket)
+
         for ip_nic in c_ipnics:
             if 'ipv4_addr' in ip_nic and 'ipv4_mask' in ip_nic:
                 ipv4_snet_address = \

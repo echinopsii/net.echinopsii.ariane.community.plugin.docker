@@ -474,10 +474,14 @@ class MappingGear(InjectorGearSkeleton):
                     if map_socket.destination_endpoint_id is None:
                         if docker_container.is_local_destination(map_socket):
                             if not docker_container.is_in_container_destination(map_socket):
-                                for endpoint in EndpointService.get_endpoints():
-                                    if endpoint.url.startswith(target_url):
-                                        target_endpoint = endpoint
-                                        break
+                                endpoints = EndpointService.get_endpoints()
+                                if endpoints is not None:
+                                    for endpoint in endpoints:
+                                        if endpoint.url.startswith(target_url):
+                                            target_endpoint = endpoint
+                                            break
+                                else:
+                                    LOGGER.warning("No endpoints on Ariane ?!")
                             else:
                                 target_local_process = None
                                 mirror_map_socket = None
@@ -577,6 +581,7 @@ class MappingGear(InjectorGearSkeleton):
         LOGGER.debug("MappingGear.synchronize_existing_processs_node")
         mapping_container = docker_container.mcontainer
         #SYNC PROCESS PROPERTIES
+        pass
 
     @staticmethod
     def synchronize_new_processs_node(docker_container, process):
@@ -613,24 +618,29 @@ class MappingGear(InjectorGearSkeleton):
     def synchronize_removed_processs_node(docker_container, process):
         LOGGER.debug("MappingGear.synchronize_removed_processs_node")
         mapping_container = docker_container.mcontainer
-        process_node = NodeService.find_node(nid=process.mdpid)
-        if process_node is not None:
-            process_node.remove()
+        if mapping_container is None and docker_container.mid is not None:
+            docker_container.mcontainer = ContainerService.find_container(cid=docker_container.mid)
+            mapping_container = docker_container.mcontainer
+        if mapping_container is not None:
+            process_node = NodeService.find_node(nid=process.mdpid)
+            if process_node is not None:
+                process_node.remove()
+            else:
+                LOGGER.warning("Mapping node for process " + process.pid + "@" + mapping_container.name +
+                               " not found !")
         else:
-            LOGGER.warning("Mapping node for process " + process.pid + "@" + mapping_container.name +
-                           " not found !")
+            LOGGER.warning("Mapping container not found for container " + docker_container.name + " !?")
 
     @staticmethod
     def synchronize_container_processs(docker_container):
         LOGGER.debug("MappingGear.synchronize_container_processs")
-        # SYNC EXISTING/NEW PROCESSES NODES
+        # SYNC NEW PROCESSES NODES
+        for process in docker_container.new_processs:
+            MappingGear.synchronize_new_processs_node(docker_container, process)
+        # SYNC CURRENT PROCESSES AND SOCKETS
         for process in docker_container.processs:
-            if process in docker_container.new_processs:
-                MappingGear.synchronize_new_processs_node(docker_container, process)
-            elif process in docker_container.last_processs:
+            if process in docker_container.last_processs:
                 MappingGear.synchronize_existing_processs_node(docker_container, process)
-        # SYNC PROCESSES SOCKETS
-        for process in docker_container.processs:
             MappingGear.synchronize_process_sockets(docker_container, process)
         # SYNC DEAD PROCESSES
         for process in docker_container.last_processs:
@@ -645,14 +655,14 @@ class MappingGear(InjectorGearSkeleton):
         pass
 
     @staticmethod
-    def synchronize_existing_containers(docker_container):
+    def synchronize_existing_container(docker_container):
         LOGGER.debug("MappingGear.synchronize_existing_containers")
         MappingGear.synchronize_container_properties(docker_container)
         MappingGear.synchronize_container_processs(docker_container)
 
     @staticmethod
-    def synchronize_new_containers(docker_container):
-        LOGGER.debug("MappingGear.synchronize_new_containers")
+    def synchronize_new_container(docker_container):
+        LOGGER.debug("MappingGear.synchronize_new_container")
         if docker_container.ost is None:
             if docker_container.ostid is not None:
                 docker_container.ost = OSTypeService.find_ostype(ost_id=docker_container.ostid)
@@ -684,33 +694,52 @@ class MappingGear(InjectorGearSkeleton):
         MappingGear.synchronize_container_processs(docker_container)
 
     @staticmethod
-    def synchronize_removed_containers(docker_container):
-        LOGGER.debug("MappingGear.synchronize_removed_containers - " + docker_container.name)
-        if docker_container.mid is None:
-            mapping_container = ContainerService.find_container(
-                primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                                       docker_container.name + ' /bin/bash]'
-            )
-            if mapping_container is not None:
-                docker_container.mid = mapping_container.id
-        else:
-            mapping_container = ContainerService.find_container(cid=docker_container.mid)
+    def synchronize_removed_container(docker_container):
+        LOGGER.debug("MappingGear.synchronize_removed_container - " + docker_container.name)
+        docker_container.mcontainer.remove()
 
-        if mapping_container is not None:
-            mapping_container.remove()
-        else:
-            LOGGER.warning("No mapping container found for removed docker container " +
-                           str(docker_container.name) + " !")
+    def synchronize_container(self, docker_host):
+        LOGGER.debug("MappingGear.synchronize_container")
+        LOGGER.debug("current containers: " + pprint.pformat(docker_host.containers))
+        LOGGER.debug("new containers: " + pprint.pformat(docker_host.new_containers))
+        LOGGER.debug("last containers: " + pprint.pformat(docker_host.last_containers))
+        for docker_container in docker_host.last_containers:
+            if docker_container.mcontainer is None:
+                if docker_container.mid is None:
+                    docker_container.mcontainer = ContainerService.find_container(
+                        primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
+                                               docker_container.name + ' /bin/bash]'
+                    )
+                    if docker_container.mcontainer is not None:
+                        docker_container.mid = docker_container.mcontainer.id
+                else:
+                    docker_container.mcontainer = ContainerService.find_container(cid=docker_container.mid)
+            if docker_container.mcontainer is not None:
+                self.synchronize_existing_container(docker_container)
+            else:
+                LOGGER.warning("Mapping container not found for container to be updated (" +
+                               docker_container.name + ") !?")
 
-    def synchronize_containers(self, docker_host):
-        for docker_container in docker_host.containers:
-            if docker_container not in docker_host.new_containers:
-                self.synchronize_existing_containers(docker_container)
         for docker_container in docker_host.new_containers:
-            self.synchronize_new_containers(docker_container)
+            self.synchronize_new_container(docker_container)
+
         for docker_container in docker_host.last_containers:
             if docker_container not in docker_host.containers:
-                self.synchronize_removed_containers(docker_container)
+                if docker_container.mcontainer is None:
+                    if docker_container.mid is None:
+                        docker_container.mcontainer = ContainerService.find_container(
+                            primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
+                                                   docker_container.name + ' /bin/bash]'
+                        )
+                        if docker_container.mcontainer is not None:
+                            docker_container.mid = docker_container.mcontainer.id
+                    else:
+                        docker_container.mcontainer = ContainerService.find_container(cid=docker_container.mid)
+                if docker_container.mcontainer is not None:
+                    self.synchronize_removed_container(docker_container)
+                else:
+                    LOGGER.warning("Mapping container not found for container to be removed (" +
+                                   docker_container.name + ") !?")
 
     def init_ariane_mapping(self, component):
         LOGGER.debug("MappingGear.init_ariane_mapping")
@@ -725,7 +754,7 @@ class MappingGear(InjectorGearSkeleton):
         else:
             docker_host = component.docker_host.get()
             try:
-                self.synchronize_containers(docker_host)
+                self.synchronize_container(docker_host)
             except Exception as e:
                 LOGGER.error(e.__str__())
                 LOGGER.error(traceback.format_exc())
@@ -735,7 +764,7 @@ class MappingGear(InjectorGearSkeleton):
         if self.running:
             docker_host = component.docker_host.get()
             try:
-                self.synchronize_containers(docker_host)
+                self.synchronize_container(docker_host)
             except Exception as e:
                 LOGGER.error(e.__str__())
                 LOGGER.error(traceback.format_exc())

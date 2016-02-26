@@ -22,7 +22,7 @@ import threading
 import traceback
 from ariane_clip3.directory import OSInstanceService, RoutingAreaService, SubnetService, NICardService, IPAddressService, \
     TeamService, Team, EnvironmentService, Environment, OSInstance, OSTypeService, CompanyService, Company, OSType, \
-    IPAddress, NICard
+    IPAddress, NICard, LocationService
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
@@ -301,6 +301,7 @@ class DirectoryGear(InjectorGearSkeleton):
 
                                 if dock_subnet is not None:
                                     docker_container.osi.add_subnet(dock_subnet)
+                                    docker_container.osi.sync()
 
                                 if nicmcaddr is not None and nicmcaddr:
                                     nic2save = NICardService.find_niCard(nic_mac_Address=nicmcaddr)
@@ -564,6 +565,9 @@ class MappingGear(InjectorGearSkeleton):
     @staticmethod
     def synchronize_process_sockets(docker_container, process):
         LOGGER.debug("MappingGear.synchronize_process_sockets")
+        LOGGER.debug("current sockets: " + pprint.pformat(process.map_sockets))
+        LOGGER.debug("new sockets: " + pprint.pformat(process.new_map_sockets))
+        LOGGER.debug("last sockets: " + pprint.pformat(process.last_map_sockets))
         for map_socket in process.new_map_sockets:
             MappingGear.synchronize_new_map_socket(docker_container, process, map_socket)
         for map_socket in process.last_map_sockets:
@@ -573,8 +577,20 @@ class MappingGear(InjectorGearSkeleton):
     @staticmethod
     def synchronize_process_properties(docker_container, process):
         LOGGER.debug("MappingGear.synchronize_processs_properties")
-        #TODO
-        pass
+        if process.mosp is None and process.mospid is not None:
+            process.mosp = NodeService.find_node(nid=process.mospid)
+        if process.mosp is not None:
+            process.mosp.sync()
+            if process.mdp is None and process.mdpid is not None:
+                process.mdp = NodeService.find_node(nid=process.mdpid)
+            if process.mdp is not None:
+                process.mdp.sync()
+                for key in process.mosp.properties.keys():
+                    process.mdp.add_property((key, process.mosp.properties[key]))
+            else:
+                LOGGER.warning("Process " + process.name + " has been lost on mapping DB ?!")
+        else:
+            LOGGER.warning("Shadow process of " + process.name + " has been lost on mapping DB ?!")
 
     @staticmethod
     def synchronize_existing_processs_node(docker_container, process):
@@ -610,7 +626,7 @@ class MappingGear(InjectorGearSkeleton):
             process.mdpid = process_node.id
             process.mdp = process_node
             process.mospid = mosp.id
-            process.mos = mosp
+            process.mosp = mosp
         else:
             LOGGER.warning("Shadow Mapping OS node for process " + str(process.pid) + " not found !")
 
@@ -651,13 +667,159 @@ class MappingGear(InjectorGearSkeleton):
     def synchronize_container_properties(docker_container):
         LOGGER.debug("MappingGear.synchronize_container_properties")
         mapping_container = docker_container.mcontainer
-        #TODO
-        pass
+        if docker_container.osi is None and docker_container.oid is not None:
+            docker_container.osi = OSInstanceService.find_os_instance(osi_id=docker_container.oid)
+
+        if docker_container.team is None and docker_container.tid is not None:
+            docker_container.team = TeamService.find_team(team_id=docker_container.tid)
+
+        is_ok = True
+        if docker_container.osi is not None:
+            docker_container.osi.sync()
+        else:
+            is_ok = False
+            LOGGER.warning("Docker container " + docker_container.name + " linked OS instance not found !?")
+
+        if is_ok and docker_container.team is not None:
+            docker_container.team.sync()
+        else:
+            is_ok = False
+            LOGGER.warning("Docker container " + docker_container.name + " linked team not found !?")
+
+        if is_ok:
+            if DockerHostGear.docker_host_lra.loc_ids.__len__() > 1:
+                LOGGER.warning("Localhost routing area " + DockerHostGear.docker_host_lra.name +
+                               " have more than one location ?!")
+            elif DockerHostGear.docker_host_lra.loc_ids.__len__() == 1:
+                location = LocationService.find_location(DockerHostGear.docker_host_lra.loc_ids[0])
+                if location is not None:
+                    location_properties = {
+                        Container.PL_NAME_MAPPING_FIELD: location.name,
+                        Container.PL_ADDR_MAPPING_FIELD: location.address,
+                        Container.PL_TOWN_MAPPING_FIELD: location.town,
+                        Container.PL_CNTY_MAPPING_FIELD: location.country,
+                        Container.PL_GPSA_MAPPING_FIELD: location.gpsLatitude,
+                        Container.PL_GPSN_MAPPING_FIELD: location.gpsLongitude
+                    }
+                    mapping_container.add_property((Container.PL_MAPPING_PROPERTIES, location_properties))
+                else:
+                    LOGGER.warning("Location ( " + DockerHostGear.docker_host_lra.loc_ids[0] + " ) not found ?!")
+            else:
+                LOGGER.warning("Localhost routing area " + DockerHostGear.docker_host_lra.name +
+                               " don't have location ?!")
+
+            network_properties = []
+            ra_subnets = {}
+            ra_list = []
+            for subnet_id in docker_container.osi.subnet_ids:
+                subnet = SubnetService.find_subnet(subnet_id)
+                if subnet is not None:
+                    if subnet.routing_area_id is not None:
+                        if subnet.routing_area_id not in ra_subnets:
+                            routing_area = RoutingAreaService.find_routing_area(ra_id=subnet.routing_area_id)
+                            if routing_area is not None:
+                                ra_list.append(routing_area)
+                                ra_subnets[subnet.routing_area_id] = []
+                                ra_subnets[subnet.routing_area_id].append({
+                                    Container.SUBNET_NAME_MAPPING_FIELD: subnet.name,
+                                    Container.SUBNET_IPAD_MAPPING_FIELD: subnet.ip,
+                                    Container.SUBNET_MASK_MAPPING_FIELD: subnet.mask,
+                                    Container.SUBNET_ISDEFAULT_MAPPING_FIELD: subnet.is_default
+                                })
+                            else:
+                                LOGGER.warning("Routing Area ( " + subnet.routing_area_id + " ) for subnet (" +
+                                               subnet.name + ") not fount !?")
+                        else:
+                            ra_subnets[subnet.routing_area_id].append({
+                                Container.SUBNET_NAME_MAPPING_FIELD: subnet.name,
+                                Container.SUBNET_IPAD_MAPPING_FIELD: subnet.ip,
+                                Container.SUBNET_MASK_MAPPING_FIELD: subnet.mask,
+                                Container.SUBNET_ISDEFAULT_MAPPING_FIELD: subnet.is_default
+                            })
+                else:
+                   LOGGER.warning("Subnet (" + subnet_id + ") not found !?")
+
+            for ra in ra_list:
+                network_properties.append(
+                    {
+                        Container.RAREA_NAME_MAPPING_FIELD: ra.name,
+                        Container.RAREA_MLTC_MAPPING_FIELD: ra.multicast,
+                        Container.RAREA_TYPE_MAPPING_FIELD: ra.type,
+                        Container.RAREA_SUBNETS: ra_subnets[ra.id]
+                    })
+            if network_properties.__len__() > 0:
+                mapping_container.add_property((Container.NETWORK_MAPPING_PROPERTIES, network_properties))
+
+            team_properties = {
+                    Container.TEAM_NAME_MAPPING_FIELD: docker_container.team.name,
+                    Container.TEAM_COLR_MAPPING_FIELD: docker_container.team.color_code
+            }
+            mapping_container.add_property((Container.TEAM_SUPPORT_MAPPING_PROPERTIES, team_properties))
+
+            mapping_container.add_property((
+                DockerContainer.docker_props_config_image,
+                docker_container.details['Config']['Image']
+            ))
+
+            exposed_ports = docker_container.details['Config']['ExposedPorts'].keys()
+            if exposed_ports.__len__() > 0:
+                mapping_container.add_property((
+                    DockerContainer.docker_props_config_exposed_ports,
+                    exposed_ports
+                ))
+
+            mapping_container.add_property((
+                DockerContainer.docker_props_config_cmd,
+                docker_container.details['Config']['Cmd']
+            ))
+
+            env = []
+            for envvar in docker_container.details['Config']['Env']:
+                envvar_name = envvar.split('=')[0]
+                if 'ARIANE' not in envvar_name:
+                    if 'PASSWORD' in envvar_name or 'password' in envvar_name or 'PWD' in envvar_name or 'pwd' in envvar_name:
+                        env.append((envvar_name, '*****'))
+                    else:
+                        env.append((envvar_name, envvar.split('=')[1]))
+            if env.__len__() > 0:
+                mapping_container.add_property((
+                    DockerContainer.docker_props_config_env,
+                    env
+                ))
+
+            mapping_container.add_property((
+                DockerContainer.docker_props_config_hostname,
+                docker_container.details['Config']['Hostname']
+            ))
+
+            mapping_container.add_property((
+                DockerContainer.docker_props_driver,
+                docker_container.details['Driver']
+            ))
+
+            ports_binding = []
+            ports_binding_keys = docker_container.details['HostConfig']['PortBindings']
+            if ports_binding_keys.__len__() > 0:
+                for exposed_port in ports_binding_keys:
+                    targets = docker_container.details['HostConfig']['PortBindings'][exposed_port]
+                    if targets.__len__() > 0:
+                        port_binding = exposed_port + ' -> [ '
+                        for target in targets:
+                            host_ip = target['HostIp']
+                            host_port = target['HostPort']
+                            if host_ip == '':
+                                host_ip = '0.0.0.0'
+                            port_binding = host_ip + ':' + host_port + ' '
+                        port_binding += ']'
+                        ports_binding.append(port_binding)
+            mapping_container.add_property((
+                DockerContainer.docker_props_host_config_port_binding,
+                ports_binding
+            ))
 
     @staticmethod
     def synchronize_existing_container(docker_container):
         LOGGER.debug("MappingGear.synchronize_existing_containers")
-        MappingGear.synchronize_container_properties(docker_container)
         MappingGear.synchronize_container_processs(docker_container)
 
     @staticmethod

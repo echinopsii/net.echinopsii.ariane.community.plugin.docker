@@ -153,10 +153,19 @@ class DockerContainer(object):
     ariane_environment_cc = "ARIANE_ENV_COLOR_CODE"
     ariane_environment_desc = "ARIANE_ENV_DESCRIPTION"
 
+    docker_props_config_cmd = "docker_cmd"
+    docker_props_config_env = "docker_env"
+    docker_props_config_exposed_ports = "docker_exposed_ports"
+    docker_props_config_hostname = "docker_hostname"
+    docker_props_config_image = "docker_image"
+    docker_props_driver = "docker_driver"
+    docker_props_host_config_port_binding = "docker_ports_binding"
+
     def __init__(self, dcontainer_id=None, mcontainer_id=None, mcontainer=None, osi_id=None, osi=None,
                  ost_id=None, ost=None, environment_id=None, environment=None, team_id=None, team=None,
                  name=None, domain=None, fqdn=None, nsenter_pid=None, details=None,
                  processs=None, last_processs=None, last_nics=None, nics=None):
+        LOGGER.debug(pprint.pformat(details))
         self.did = dcontainer_id
         self.name = name
         self.domain = domain

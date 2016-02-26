@@ -777,10 +777,14 @@ class MappingGear(InjectorGearSkeleton):
             for envvar in docker_container.details['Config']['Env']:
                 envvar_name = envvar.split('=')[0]
                 if 'ARIANE' not in envvar_name:
+                    envvar_value = None
                     if 'PASSWORD' in envvar_name or 'password' in envvar_name or 'PWD' in envvar_name or 'pwd' in envvar_name:
-                        env.append((envvar_name, '*****'))
+                        envvar_value = '*****'
                     else:
-                        env.append((envvar_name, envvar.split('=')[1]))
+                        envvar_value = envvar.split('=')[1]
+                    env.append({
+                        envvar_name: envvar_value
+                    })
             if env.__len__() > 0:
                 mapping_container.add_property((
                     DockerContainer.docker_props_config_env,
@@ -809,7 +813,7 @@ class MappingGear(InjectorGearSkeleton):
                             host_port = target['HostPort']
                             if host_ip == '':
                                 host_ip = '0.0.0.0'
-                            port_binding = host_ip + ':' + host_port + ' '
+                            port_binding += host_ip + ':' + host_port + ' '
                         port_binding += ']'
                         ports_binding.append(port_binding)
             mapping_container.add_property((

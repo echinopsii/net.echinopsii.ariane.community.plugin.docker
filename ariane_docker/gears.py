@@ -593,13 +593,6 @@ class MappingGear(InjectorGearSkeleton):
             LOGGER.warning("Shadow process of " + process.name + " has been lost on mapping DB ?!")
 
     @staticmethod
-    def synchronize_existing_processs_node(docker_container, process):
-        LOGGER.debug("MappingGear.synchronize_existing_processs_node")
-        mapping_container = docker_container.mcontainer
-        #SYNC PROCESS PROPERTIES
-        pass
-
-    @staticmethod
     def synchronize_new_processs_node(docker_container, process):
         LOGGER.debug("MappingGear.synchronize_new_processs_node")
         mapping_container = docker_container.mcontainer
@@ -655,8 +648,7 @@ class MappingGear(InjectorGearSkeleton):
             MappingGear.synchronize_new_processs_node(docker_container, process)
         # SYNC CURRENT PROCESSES AND SOCKETS
         for process in docker_container.processs:
-            if process in docker_container.last_processs:
-                MappingGear.synchronize_existing_processs_node(docker_container, process)
+            MappingGear.synchronize_process_properties(docker_container, process)
             MappingGear.synchronize_process_sockets(docker_container, process)
         # SYNC DEAD PROCESSES
         for process in docker_container.last_processs:
@@ -773,7 +765,7 @@ class MappingGear(InjectorGearSkeleton):
                 docker_container.details['Config']['Cmd']
             ))
 
-            env = []
+            env = {}
             for envvar in docker_container.details['Config']['Env']:
                 envvar_name = envvar.split('=')[0]
                 if 'ARIANE' not in envvar_name:
@@ -782,10 +774,8 @@ class MappingGear(InjectorGearSkeleton):
                         envvar_value = '*****'
                     else:
                         envvar_value = envvar.split('=')[1]
-                    env.append({
-                        envvar_name: envvar_value
-                    })
-            if env.__len__() > 0:
+                    env[envvar_name] = envvar_value
+            if env.keys().__len__() > 0:
                 mapping_container.add_property((
                     DockerContainer.docker_props_config_env,
                     env
@@ -807,14 +797,13 @@ class MappingGear(InjectorGearSkeleton):
                 for exposed_port in ports_binding_keys:
                     targets = docker_container.details['HostConfig']['PortBindings'][exposed_port]
                     if targets.__len__() > 0:
-                        port_binding = exposed_port + ' -> [ '
+                        port_binding = exposed_port + ' <-> '
                         for target in targets:
                             host_ip = target['HostIp']
                             host_port = target['HostPort']
                             if host_ip == '':
                                 host_ip = '0.0.0.0'
                             port_binding += host_ip + ':' + host_port + ' '
-                        port_binding += ']'
                         ports_binding.append(port_binding)
             mapping_container.add_property((
                 DockerContainer.docker_props_host_config_port_binding,

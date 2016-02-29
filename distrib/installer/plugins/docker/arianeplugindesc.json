@@ -1,6 +1,6 @@
 {
     "id": "ariane.community.plugin.docker",
-    "version": "0.1.0-b01",
+    "version": "0.1.0",
     "type": "community",
     "distribs": [
         "0.7.3"

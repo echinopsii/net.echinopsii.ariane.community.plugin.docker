@@ -600,11 +600,10 @@ class MappingGear(InjectorGearSkeleton):
 
         mosp = None
         MappingGear.docker_host_mco.sync()
-        #TODO : provide find_node(name_pattern=...) to improve following source
-        for docker_host_mpid in MappingGear.docker_host_mco.nodes_id:
-            node_to_test = NodeService.find_node(nid=docker_host_mpid)
-            if node_to_test is not None:
-                #LOGGER.debug("node to test: " + node_to_test.name)
+
+        nodes_to_test = NodeService.find_node(selector="nodeName =~ '.*" + str(process.pid) + ".*'")
+        if nodes_to_test is not None:
+            for node_to_test in nodes_to_test:
                 if node_to_test.name.startswith('[' + str(process.pid) + ']'):
                     LOGGER.debug("Shadow Mapping OS node found : " + node_to_test.name)
                     mosp = node_to_test

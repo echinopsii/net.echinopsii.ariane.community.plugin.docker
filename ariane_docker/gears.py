@@ -585,8 +585,12 @@ class MappingGear(InjectorGearSkeleton):
                 process.mdp = NodeService.find_node(nid=process.mdpid)
             if process.mdp is not None:
                 process.mdp.sync()
-                for key in process.mosp.properties.keys():
-                    process.mdp.add_property((key, process.mosp.properties[key]))
+                if process.mosp.properties is not None:
+                    for key in process.mosp.properties.keys():
+                        process.mdp.add_property((key, process.mosp.properties[key]))
+                else:
+                    LOGGER.warning("No properties for process " +
+                                   str(process.mosp.name) if process.mosp.name is not None else "???" + " ?!")
             else:
                 LOGGER.warning("Process " + process.name + " has been lost on mapping DB ?!")
         else:

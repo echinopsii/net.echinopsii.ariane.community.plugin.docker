@@ -475,14 +475,16 @@ class MappingGear(InjectorGearSkeleton):
                     if map_socket.destination_endpoint_id is None:
                         if docker_container.is_local_destination(map_socket):
                             if not docker_container.is_in_container_destination(map_socket):
-                                endpoints = EndpointService.get_endpoints()
+                                selector = "endpointURL =~ '" + target_url + ".*'"
+                                endpoints = EndpointService.find_endpoint(selector=selector)
                                 if endpoints is not None:
-                                    for endpoint in endpoints:
-                                        if endpoint.url.startswith(target_url):
-                                            target_endpoint = endpoint
-                                            break
+                                    if endpoints.__len__() == 1:
+                                        target_endpoint = endpoints[0]
+                                    else:
+                                        LOGGER.warning("Several endpoints found for selector " + selector +
+                                                       ". There should be one endpoint only !")
                                 else:
-                                    LOGGER.warning("No endpoints on Ariane ?!")
+                                    LOGGER.warning("No endpoint for selector " + selector + "  ?!")
                             else:
                                 target_local_process = None
                                 mirror_map_socket = None

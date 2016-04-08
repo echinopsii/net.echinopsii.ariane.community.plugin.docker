@@ -380,6 +380,8 @@ class DockerContainer(object):
                 for line in text:
                     if ": <" in line and ("UP" in line or "UNKNOWN" in line):
                         card_name = line.split(":")[1].split(": <")[0].replace(' ', '')
+                        if '@' in card_name:
+                            card_name = card_name.split('@')[0]
                         if current_card is None:
                             current_card = {'name': card_name}
                         else:
@@ -543,8 +545,9 @@ class DockerContainer(object):
 
         c_netstat = self.netstat()
         c_ipnics = []
-        for iptable in self.ipaddr():
-            c_ipnics.append(self.ethtool(iptable))
+        for ipaddr in self.ipaddr():
+            LOGGER.debug(str(ipaddr))
+            c_ipnics.append(self.ethtool(ipaddr))
         c_top = cli.top(self.did)
         top_processes = c_top['Processes'] if 'Processes' in c_top and c_top['Processes'] is not None else []
 

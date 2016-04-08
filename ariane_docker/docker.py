@@ -405,79 +405,8 @@ class DockerContainer(object):
                             mask = str(256 - (1 << z_bytes - 24)) + ".0.0.0"
                         current_card['ipv4_mask'] = mask
 
-                    if "link" in line:
+                    if "link" in line and "brd" in line:
                         current_card['mac_addr'] = line.split("brd")[0].split("link")[1].split(" ")[1]
-                ret.append(current_card)
-            return ret
-
-    def ifconfig(self):
-        LOGGER.debug("DockerContainer.ifconfig")
-        ret = []
-        if os.getuid() != 0:
-            LOGGER.warning("You need to have root privileges to sniff containers namespace.")
-        else:
-            text = None
-            if _platform == "linux" or _platform == "linux2":
-                with Namespace(self.nsented_pid, 'net'):
-                    bytes = subprocess.check_output(['ifconfig'])
-                tmpfilename = tempfile.gettempdir() + os.sep + self.did + '.tmp'
-                with open(tmpfilename, 'wb') as tmpfile:
-                    tmpfile.write(bytes)
-                    tmpfile.close()
-                with open(tmpfilename, 'r') as tmpfile:
-                    text = tmpfile.readlines()
-                    tmpfile.close()
-                os.remove(tmpfilename)
-
-            current_card = None
-            if text is not None:
-                for line in text:
-                    if "Link encap" in line:
-                        card_name = line.split('Link encap')[0].replace(' ', '')
-                        if current_card is None:
-                            current_card = {'name': card_name}
-                        else:
-                            ret.append(current_card)
-                            current_card = {'name': card_name}
-                        if "HWaddr" in line:
-                            current_card['mac_addr'] = line.split('HWaddr')[1].replace(' ', '').replace('\n', '')
-
-                    elif ": flags=" in line:
-                        card_name = line.split(': flags')[0].replace(' ', '')
-                        if current_card is None:
-                            current_card = {'name': card_name}
-                        else:
-                            ret.append(current_card)
-                            current_card = {'name': card_name}
-
-                    elif "inet addr" in line:
-                        if "Bcast" in line:
-                            current_card['ipv4_addr'] = line.split('inet addr:')[1].split('Bcast')[0].replace(' ', '')
-                        else:
-                            current_card['ipv4_addr'] = line.split('inet addr:')[1].split('Mask')[0].replace(' ', '')
-                        current_card['ipv4_mask'] = line.split('Mask:')[1].replace('\n', '')
-
-                    elif "inet" in line and "inet6" not in line:
-                        current_card['ipv4_addr'] = line.split('inet')[1].split('netmask')[0].replace(' ', '')
-                        if "broadcast" in line:
-                            current_card['ipv4_mask'] = line.split('netmask')[1].split('broadcast')[0].replace(' ', '').replace('\n', '')
-                        else:
-                            current_card['ipv4_mask'] = line.split('netmask')[1].replace(' ', '').replace('\n', '')
-
-                    elif "MTU" in line:
-                        current_card['mtu'] = line.split('MTU:')[1].split('Metric')[0].replace(' ', '')
-                        if "MULTICAST" in line:
-                            current_card['multicast'] = True
-                        else:
-                            current_card['multicast'] = False
-
-                    elif "mtu" in line:
-                        current_card['mtu'] = line.split('mtu')[1].replace(' ', '')
-                        if "MULTICAST" in line:
-                            current_card['multicast'] = True
-                        else:
-                            current_card['multicast'] = False
-
                 ret.append(current_card)
             return ret
 

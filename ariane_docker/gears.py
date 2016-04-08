@@ -316,7 +316,6 @@ class DirectoryGear(InjectorGearSkeleton):
                                             nic_osi_id=docker_container.osi.id,
                                             nic_ipa_id=ip_address.id if ip_address is not None else None
                                         )
-                                        #LOGGER.debug(str(nic2save))
                                         nic2save.save()
                                     else:
                                         nic2save.nic_ipa_id = ip_address.id if ip_address is not None else None

@@ -24,7 +24,7 @@ setup(name='ariane_docker',
       packages=['ariane_docker'],
       license='AGPLv3',
       install_requires=['docker-py>=1.6.0', 'nsenter>=0.2',
-                        'pykka>=1.2.1', 'ariane_clip3==0.1.3-b01', 'ariane_procos==0.1.1'],
+                        'pykka>=1.2.1', 'ariane_clip3>=0.1.3-b01', 'ariane_procos>=0.1.1'],
       package_data={'': ['LICENSE', 'README.md']},
       classifiers=[
           'Development Status :: 4 - Beta',

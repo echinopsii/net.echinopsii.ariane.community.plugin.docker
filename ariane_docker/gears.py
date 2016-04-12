@@ -208,7 +208,8 @@ class DirectoryGear(InjectorGearSkeleton):
         LOGGER.debug("DirectoryGear.sync_docker_container_ost")
         ost_from_conf = docker_container.extract_os_type_from_env_vars()
         if ost_from_conf is not None:
-            ost_from_ariane = OSTypeService.find_ostype(ost_name=ost_from_conf[DockerContainer.ariane_ost_name])
+            ost_from_ariane = OSTypeService.find_ostype(ost_name=ost_from_conf[DockerContainer.ariane_ost_name],
+                                                        ost_arch=ost_from_conf[DockerContainer.ariane_ost_arc])
             if ost_from_ariane is None:
                 cmp_from_ariane = CompanyService.find_company(
                     cmp_name=ost_from_conf[DockerContainer.ariane_ost_scmp_name]

@@ -18,8 +18,8 @@
 import logging
 import pprint
 import socket
-import threading
 import traceback
+from ariane_clip3.domino import DominoReceptor
 from ariane_clip3.directory import OSInstanceService, RoutingAreaService, SubnetService, NICardService, IPAddressService, \
     TeamService, Team, EnvironmentService, Environment, OSInstance, OSTypeService, CompanyService, Company, OSType, \
     IPAddress, NICard, LocationService
@@ -27,7 +27,7 @@ from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
 from ariane_clip3.mapping import ContainerService, Container, NodeService, Node, EndpointService, Endpoint, Link, \
-    Transport, TransportService
+    Transport
 from ariane_procos.system import NetworkInterfaceCard
 from ariane_docker.components import DockerComponent
 from ariane_docker.docker import DockerContainer
@@ -64,14 +64,14 @@ class DirectoryGear(InjectorGearSkeleton):
     def gear_start(self):
         LOGGER.debug("DirectoryGear.gear_start")
         self.on_start()
-        LOGGER.info('docker_directory_gear@' + str(DockerHostGear.hostname) + ' has been started.')
+        LOGGER.debug('docker_directory_gear@' + str(DockerHostGear.hostname) + ' has been started.')
 
     def gear_stop(self):
         LOGGER.debug("DirectoryGear.gear_stop")
         if self.running:
             self.running = False
             self.cache(running=self.running)
-            LOGGER.info('docker_directory_gear@' + str(DockerHostGear.hostname) + ' has been stopped.')
+            LOGGER.debug('docker_directory_gear@' + str(DockerHostGear.hostname) + ' has been stopped.')
 
     @staticmethod
     def sync_docker_host_osi(cached_docker_host):
@@ -376,22 +376,24 @@ class DirectoryGear(InjectorGearSkeleton):
             LOGGER.debug("No changes on docker host containers !")
 
     def init_ariane_directories(self, component):
-        LOGGER.debug("DirectoryGear.init_ariane_directories")
         docker_host = component.docker_host.get()
+        LOGGER.debug("DirectoryGear.init_ariane_directories - init start")
         self.sync_docker_host_osi(docker_host)
         self.sync_docker_host_lra(docker_host)
         self.sync_docker_networks(docker_host)
         self.sync_docker_containers(docker_host)
+        LOGGER.debug("DirectoryGear.init_ariane_directories - init done")
 
     def synchronize_with_ariane_directories(self, component):
-        LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories")
         if self.running:
             docker_host = component.docker_host.get()
+            LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories - sync start")
             self.update_ariane_directories(docker_host)
             self.update_count += 1
+            LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories - sync done")
         else:
             LOGGER.warning("Synchronization requested but docker_directory_gear@" + str(DockerHostGear.hostname) +
-                           " is not running.")
+                          " is not running.")
 
 
 class MappingGear(InjectorGearSkeleton):
@@ -539,7 +541,6 @@ class MappingGear(InjectorGearSkeleton):
                                 link.save()
                                 map_socket.transport_id = transport.id
                                 map_socket.link_id = link.id
-
         else:
             LOGGER.warning('no source ip / port - ' + str(map_socket))
 
@@ -594,9 +595,9 @@ class MappingGear(InjectorGearSkeleton):
                     LOGGER.warning("No properties for process " +
                                    str(process.mosp.name) if process.mosp.name is not None else "???" + " ?!")
             else:
-                LOGGER.warning("Process " + process.name + " has been lost on mapping DB ?!")
+                LOGGER.warning("Process " + str(process.mdpid) + " has been lost on mapping DB ?!")
         else:
-            LOGGER.warning("Shadow process of " + process.name + " has been lost on mapping DB ?!")
+            LOGGER.warning("Shadow process " + str(process.mospid) + " has been lost on mapping DB ?!")
 
     @staticmethod
     def synchronize_new_processs_node(docker_container, process):
@@ -902,7 +903,6 @@ class MappingGear(InjectorGearSkeleton):
                                    docker_container.name + ") !?")
 
     def init_ariane_mapping(self, component):
-        LOGGER.debug("MappingGear.init_ariane_mapping")
         MappingGear.docker_host_mco = ContainerService.find_container(
             primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri
         )
@@ -914,25 +914,27 @@ class MappingGear(InjectorGearSkeleton):
         else:
             docker_host = component.docker_host.get()
             try:
+                LOGGER.debug("MappingGear.init_ariane_mapping - init start")
                 self.synchronize_container(docker_host)
+                LOGGER.debug("MappingGear.init_ariane_mapping - init done")
             except Exception as e:
                 LOGGER.error(e.__str__())
                 LOGGER.error(traceback.format_exc())
 
     def synchronize_with_ariane_mapping(self, component):
-        LOGGER.debug("MappingGear.synchronize_with_ariane_mapping")
         if self.running:
             docker_host = component.docker_host.get()
+            LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync start")
             try:
                 self.synchronize_container(docker_host)
             except Exception as e:
                 LOGGER.error(e.__str__())
                 LOGGER.error(traceback.format_exc())
             self.update_count += 1
+            LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync done")
         else:
             LOGGER.warning('Synchronization requested but docker_mapping_gear@' +
                            str(DockerHostGear.hostname) + ' is not running.')
-
 
 class DockerHostGear(InjectorGearSkeleton):
     #static reference on commons var
@@ -941,6 +943,8 @@ class DockerHostGear(InjectorGearSkeleton):
 
     docker_host_osi = None
     docker_host_lra = None
+
+    initialized = False
 
     def __init__(self, config, cli):
         LOGGER.debug("DockerHostGear.__init__")
@@ -954,9 +958,6 @@ class DockerHostGear(InjectorGearSkeleton):
                              str(DockerHostGear.hostname),
             running=False
         )
-        self.sleeping_period = config.sleeping_period
-        self.service = None
-        self.service_name = 'docker_host@'+str(DockerHostGear.hostname)+' gear'
         self.component = DockerComponent.start(
             attached_gear_id=self.gear_id(),
             hostname=DockerHostGear.hostname,
@@ -965,44 +966,64 @@ class DockerHostGear(InjectorGearSkeleton):
         ).proxy()
         self.directory_gear = DirectoryGear.start().proxy()
         self.mapping_gear = MappingGear.start().proxy()
+        self.domino_receptor = None
+        self.to_be_sync = False
 
     def synchronize_with_ariane_dbs(self):
-        LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs")
-        LOGGER.info("Synchonize with Ariane DBs...")
+        print_wait = True
+        while not self.to_be_sync:
+            if print_wait:
+                LOGGER.debug("DockerHostGear.init_with_ariane_dbs - Waiting ariane sync order from ProcOS")
+                print_wait = False
+            time.sleep(5)
+        LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs - start")
         self.directory_gear.synchronize_with_ariane_directories(self.component)
         self.mapping_gear.synchronize_with_ariane_mapping(self.component)
+        self.to_be_sync = False
 
-    def run(self):
-        LOGGER.debug("DockerHostGear.run")
-        if self.sleeping_period is not None and self.sleeping_period > 0:
-            while self.running:
-                time.sleep(self.sleeping_period)
-                if self.running:
-                    self.component.sniff().get()
-
-    def on_start(self):
-        LOGGER.debug("DockerHostGear.on_start")
-        self.cache(running=self.running)
-        LOGGER.info("Initializing...")
+    def init_with_ariane_dbs(self):
+        print_wait = True
+        while not self.to_be_sync:
+            if print_wait:
+                LOGGER.info("DockerHostGear.init_with_ariane_dbs - Waiting ariane sync order from ProcOS")
+                print_wait = False
+            time.sleep(5)
+        LOGGER.debug("DockerHostGear.init_with_ariane_dbs - start")
         self.directory_gear.init_ariane_directories(self.component).get()
         self.mapping_gear.init_ariane_mapping(self.component).get()
         self.component.sniff(synchronize_with_ariane_dbs=False).get()
-        LOGGER.info("Synchonize with Ariane DBs...")
+        LOGGER.debug("DockerHostGear.init_with_ariane_dbs - Synchonize with Ariane DBs...")
         self.directory_gear.synchronize_with_ariane_directories(self.component).get()
         self.mapping_gear.synchronize_with_ariane_mapping(self.component).get()
-        LOGGER.info("Initialization done.")
+        DockerHostGear.initialized = True
+        self.to_be_sync = False
+        LOGGER.debug("DockerHostGear.init_with_ariane_dbs - done")
+
+    def on_msg(self, msg):
+        LOGGER.debug("DockerHostGear.on_msg - message received : " + str(msg))
+        self.to_be_sync = True
+
+    def on_start(self):
+        LOGGER.debug("DockerHostGear.on_start")
+        args_driver = {'type': 'Z0MQ'}
+        args_receptor = {
+            'topic': "domino_ariane_sync",
+            'treatment_callback': self.on_msg,
+            'subscriber_name': "Ariane Docker Plugin Mapping Gear"
+        }
+        self.domino_receptor = DominoReceptor(args_driver, args_receptor)
+        self.cache(running=self.running)
+        self.init_with_ariane_dbs()
         self.running = True
         self.cache(running=self.running)
-        self.service = threading.Thread(target=self.run, name=self.service_name)
-        self.service.start()
 
     def on_stop(self):
         LOGGER.debug("DockerHostGear.on_stop")
         try:
+            self.domino_receptor.stop()
             if self.running:
                 self.running = False
                 self.cache(running=self.running)
-            self.service = None
             self.component.stop().get()
             self.directory_gear.stop().get()
             self.mapping_gear.stop().get()
@@ -1013,15 +1034,10 @@ class DockerHostGear(InjectorGearSkeleton):
 
     def gear_start(self):
         LOGGER.debug("DockerHostGear.gear_start")
-        if self.service is not None:
-            LOGGER.warning('docker_host_gear@'+str(DockerHostGear.hostname)+' has been started')
-            self.running = True
-            self.service = threading.Thread(target=self.run, name=self.service_name)
-            self.service.start()
-            self.cache(running=self.running)
-        else:
-            LOGGER.warning('docker_host_gear@' + str(DockerHostGear.hostname) + ' has been restarted')
-            self.on_start()
+        self.component.start().get()
+        self.running = True
+        self.cache(running=self.running)
+        LOGGER.warning('docker_host_gear@' + str(DockerHostGear.hostname) + ' has been restarted')
 
     def gear_stop(self):
         LOGGER.debug("DockerHostGear.gear_stop")
@@ -1029,3 +1045,8 @@ class DockerHostGear(InjectorGearSkeleton):
             LOGGER.warning('docker_host_gear@' + str(DockerHostGear.hostname) + ' has been stopped')
             self.running = False
             self.cache(running=self.running)
+            self.component.stop().get()
+
+    @staticmethod
+    def is_initialized():
+        return DockerHostGear.initialized

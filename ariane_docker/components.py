@@ -66,7 +66,7 @@ class DockerComponent(InjectorComponentSkeleton):
         LOGGER.debug("DockerComponent.on_start")
         args_driver = {'type': 'Z0MQ'}
         args_receptor = {
-            'topic': "domino_directory",
+            'topic': "domino_component",
             'treatment_callback': self.sniff_on_procos_event,
             'subscriber_name': "Ariane Docker Plugin Component"
         }

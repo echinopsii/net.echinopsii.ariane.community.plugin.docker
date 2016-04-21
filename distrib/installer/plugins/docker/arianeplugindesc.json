@@ -1,9 +1,9 @@
 {
     "id": "ariane.community.plugin.docker",
-    "version": "0.1.0",
+    "version": "master.SNAPSHOT",
     "type": "community",
     "distribs": [
-        "0.7.3"
+        "master.SNAPSHOT"
     ],
     "hook": {
         "package": "plugins.docker",

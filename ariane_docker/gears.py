@@ -27,7 +27,7 @@ from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
 from ariane_clip3.mapping import ContainerService, Container, NodeService, Node, EndpointService, Endpoint, Link, \
-    Transport
+    Transport, SessionService
 from ariane_procos.system import NetworkInterfaceCard
 from ariane_docker.components import DockerComponent
 from ariane_docker.docker import DockerContainer
@@ -916,10 +916,12 @@ class MappingGear(InjectorGearSkeleton):
             try:
                 LOGGER.debug("MappingGear.init_ariane_mapping - init start")
                 self.synchronize_container(docker_host)
+                SessionService.commit()
                 LOGGER.debug("MappingGear.init_ariane_mapping - init done")
             except Exception as e:
                 LOGGER.error(e.__str__())
                 LOGGER.error(traceback.format_exc())
+                SessionService.rollback()
 
     def synchronize_with_ariane_mapping(self, component):
         if self.running:
@@ -927,10 +929,12 @@ class MappingGear(InjectorGearSkeleton):
             LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync start")
             try:
                 self.synchronize_container(docker_host)
+                SessionService.commit()
+                self.update_count += 1
             except Exception as e:
                 LOGGER.error(e.__str__())
                 LOGGER.error(traceback.format_exc())
-            self.update_count += 1
+                SessionService.rollback()
             LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync done")
         else:
             LOGGER.warning('Synchronization requested but docker_mapping_gear@' +

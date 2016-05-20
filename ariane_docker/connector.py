@@ -21,7 +21,7 @@ import traceback
 from docker import Client
 from ariane_clip3.injector import InjectorService, InjectorUITreeEntity, InjectorUITreeService, \
     InjectorCachedComponentService, InjectorCachedGearService
-from ariane_clip3.mapping import MappingService, ContainerService
+from ariane_clip3.mapping import MappingService, ContainerService, SessionService
 from ariane_clip3.directory import DirectoryService, LocationService
 
 __author__ = 'mffrench'
@@ -102,9 +102,9 @@ class ArianeConnector(object):
 
         if no_error:
             MappingService(rest_args)
-            # Test Mapping Service
+            # Open session and Test Mapping Service
             try:
-                ContainerService.get_containers()
+                SessionService.open_session("ArianeDocker_" + socket.gethostname())
             except Exception as e:
                 LOGGER.error("Problem while initializing Ariane mapping service.")
                 LOGGER.error(e.__str__())
@@ -158,4 +158,5 @@ class ArianeConnector(object):
                     InjectorCachedComponentService.get_components_cache_size() == 0:
                 self.injector_ui_procos_entity.remove()
             self.injector_service.stop()
+            SessionService.close_session()
             self.ready = False

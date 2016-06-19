@@ -104,7 +104,8 @@ class ArianeConnector(object):
             MappingService(rest_args)
             # Open session and Test Mapping Service
             try:
-                SessionService.open_session("ArianeDocker_" + socket.gethostname())
+                SessionService.open_session("ArianeDocker_test" + socket.gethostname())
+                SessionService.close_session()
             except Exception as e:
                 LOGGER.error("Problem while initializing Ariane mapping service.")
                 LOGGER.error(e.__str__())

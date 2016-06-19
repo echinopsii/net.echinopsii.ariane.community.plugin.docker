@@ -903,6 +903,7 @@ class MappingGear(InjectorGearSkeleton):
                                    docker_container.name + ") !?")
 
     def init_ariane_mapping(self, component):
+        SessionService.open_session("ArianeDocker_" + socket.gethostname())
         MappingGear.docker_host_mco = ContainerService.find_container(
             primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri
         )
@@ -910,6 +911,7 @@ class MappingGear(InjectorGearSkeleton):
             LOGGER.error('Docker host ' + str(DockerHostGear.hostname) +
                          ' Ariane container not found in Ariane mapping DB')
             LOGGER.error('Did you run Ariane ProcOS on this host first ? Stopping ...')
+            SessionService.close_session()
             sys.exit(-1)
         else:
             docker_host = component.docker_host.get()
@@ -922,9 +924,11 @@ class MappingGear(InjectorGearSkeleton):
                 LOGGER.error(e.__str__())
                 LOGGER.error(traceback.format_exc())
                 SessionService.rollback()
+            SessionService.close_session()
 
     def synchronize_with_ariane_mapping(self, component):
         if self.running:
+            SessionService.open_session("ArianeDocker_" + socket.gethostname())
             docker_host = component.docker_host.get()
             LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync start")
             try:
@@ -936,6 +940,7 @@ class MappingGear(InjectorGearSkeleton):
                 LOGGER.error(traceback.format_exc())
                 SessionService.rollback()
             LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync done")
+            SessionService.close_session()
         else:
             LOGGER.warning('Synchronization requested but docker_mapping_gear@' +
                            str(DockerHostGear.hostname) + ' is not running.')

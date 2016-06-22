@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
-from plugins.procos.dbIDMMySQLPopulator import dbIDMMySQLPopulator
+from plugins.docker.DBDockerIDMMySQLPopulator import DBDockerIDMMySQLPopulator
 
 __author__ = 'mffrench'
 
@@ -32,7 +32,7 @@ class DockerProcessor:
             os.makedirs(self.homeDirPath + "/ariane/cache/core/injector/remote/components/", 0o755)
         if not os.path.exists(self.homeDirPath + "/ariane/cache/core/injector/remote/gears/"):
             os.makedirs(self.homeDirPath + "/ariane/cache/core/injector/remote/gears/", 0o755)
-        self.dockerIDMMySQLPopulator = dbIDMMySQLPopulator(idm_db_config)
+        self.dockerIDMMySQLPopulator = DBDockerIDMMySQLPopulator(idm_db_config)
 
     def process(self):
         self.dockerIDMMySQLPopulator.process()

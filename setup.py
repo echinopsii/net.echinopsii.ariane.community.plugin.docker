@@ -12,7 +12,7 @@ long_description = ('Ariane Plugin Docker map your docker containers and more.'
                     '   + IRC on freenode #ariane.echinopsii')
 
 setup(name='ariane_docker',
-      version='0.1.1',
+      version='0.1.2-b01',
       description='Ariane Plugin Docker',
       long_description=long_description,
       author='Mathilde Ffrench',
@@ -20,11 +20,11 @@ setup(name='ariane_docker',
       maintainer='Mathilde Ffrench',
       maintainer_email='mathilde.ffrench@echinopsii.net',
       url='https://github.com/echinopsii/net.echinopsii.ariane.community.plugin.docker.git',
-      download_url='https://github.com/echinopsii/net.echinopsii.ariane.community.plugin.docker.git/tarball/0.1.1',
+      download_url='https://github.com/echinopsii/net.echinopsii.ariane.community.plugin.docker.git/tarball/0.1.2-b01',
       packages=['ariane_docker'],
       license='AGPLv3',
       install_requires=['docker-py>=1.6.0', 'nsenter>=0.2',
-                        'pykka>=1.2.1', 'ariane_clip3>=0.1.3-b03', 'ariane_procos>=0.1.2'],
+                        'pykka>=1.2.1', 'ariane_clip3>=0.1.4', 'ariane_procos>=0.1.3b02'],
       package_data={'': ['LICENSE', 'README.md']},
       classifiers=[
           'Development Status :: 4 - Beta',

@@ -20,18 +20,19 @@ from plugins.procos.dbIDMMySQLPopulator import dbIDMMySQLPopulator
 __author__ = 'mffrench'
 
 
-class dockerProcessor:
+class DockerProcessor:
 
-    def __init__(self, homeDirPath, directoryDBConfig, idmDBConfig, silent):
-        print("\n%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--\n")
+    def __init__(self, home_dir_path, directory_db_config, idm_db_config, silent):
+        print("\n%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--%--"
+              "%--%--%--%--%--%--%--%--%--\n")
         print("%-- Plugin Docker configuration : \n")
-        self.homeDirPath = homeDirPath
+        self.homeDirPath = home_dir_path
         self.silent = silent
         if not os.path.exists(self.homeDirPath + "/ariane/cache/core/injector/remote/components/"):
             os.makedirs(self.homeDirPath + "/ariane/cache/core/injector/remote/components/", 0o755)
         if not os.path.exists(self.homeDirPath + "/ariane/cache/core/injector/remote/gears/"):
             os.makedirs(self.homeDirPath + "/ariane/cache/core/injector/remote/gears/", 0o755)
-        self.dockerIDMMySQLPopulator = dbIDMMySQLPopulator(idmDBConfig)
+        self.dockerIDMMySQLPopulator = dbIDMMySQLPopulator(idm_db_config)
 
     def process(self):
         self.dockerIDMMySQLPopulator.process()

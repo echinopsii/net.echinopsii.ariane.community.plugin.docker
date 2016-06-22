@@ -7,8 +7,8 @@
     ],
     "hook": {
         "package": "plugins.docker",
-        "module": "dockerProcessor",
-        "class": "dockerProcessor"
+        "module": "DockerProcessor",
+        "class": "DockerProcessor"
     },
     "environment": [
         {

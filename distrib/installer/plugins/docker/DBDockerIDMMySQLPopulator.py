@@ -19,12 +19,15 @@ from tools.AMySQLdbInit import AMySQLdbInit
 __author__ = 'mffrench'
 
 
-class dbIDMMySQLPopulator(AMySQLdbInit):
+class DBDockerIDMMySQLPopulator(AMySQLdbInit):
 
-    def __init__(self, dbConfig):
-        self.dbServerUser = dbConfig['user']
-        self.dbServerPassword = dbConfig['password']
-        self.dbServerHost = dbConfig['host']
-        self.dbServerPort = dbConfig['port']
-        self.dbName = dbConfig['database']
+    def __init__(self, db_config):
+        self.dbServerUser = db_config['user']
+        self.dbServerPassword = db_config['password']
+        self.dbServerHost = db_config['host']
+        self.dbServerPort = db_config['port']
+        self.dbName = db_config['database']
         self.sqlScriptFilePath = "resources/sqlscripts/plugins/docker/idm_plugin_docker_insert.sql"
+
+    def process(self):
+        return super(DBDockerIDMMySQLPopulator, self).process()

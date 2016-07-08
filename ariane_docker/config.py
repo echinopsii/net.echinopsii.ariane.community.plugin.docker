@@ -18,6 +18,7 @@
 import configparser
 import json
 import os
+from ariane_clip3.driver_factory import DriverFactory
 from ariane_docker import exceptions
 
 __author__ = 'mffrench'
@@ -37,6 +38,7 @@ class Config(object):
 
         self.sleeping_period = 20
         self.log_conf_file_path = "/etc/ariane/adocker_logging.json"
+        self.mapping_driver_type = None
 
         self.docker_client_url = 'unix://var/run/docker.sock'
         self.docker_client_version = 'auto'
@@ -96,6 +98,10 @@ class Config(object):
                 self.docker_client_url = config['ariane_docker']['client_url']
             if 'log_conf_file_path' in config['ariane_docker'] and config['ariane_docker']['log_conf_file_path']:
                 self.log_conf_file_path = config['ariane_docker']['log_conf_file_path']
+            if 'mapping_driver' in config['ariane_docker']:
+                mapping_dt = config['ariane_docker']['mapping_driver']
+                if mapping_dt == DriverFactory.DRIVER_RBMQ:
+                    self.mapping_driver_type = DriverFactory.DRIVER_RBMQ
 
         if ariane_server_missing_fields.__len__() > 0:
             raise exceptions.ArianeDockerConfigMandatoryFieldsMissingError(ariane_server_missing_fields)

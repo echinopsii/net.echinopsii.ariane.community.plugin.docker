@@ -759,7 +759,10 @@ class MappingGear(InjectorGearSkeleton):
                 docker_container.details['Config']['Image']
             ))
 
-            exposed_ports = docker_container.details['Config']['ExposedPorts'].keys()
+            exposed_ports = []
+            dict_key_ep = docker_container.details['Config']['ExposedPorts'].keys()
+            for key in dict_key_ep:
+                exposed_ports.append(key)
             if exposed_ports.__len__() > 0:
                 mapping_container.add_property((
                     DockerContainer.docker_props_config_exposed_ports,

@@ -769,10 +769,15 @@ class MappingGear(InjectorGearSkeleton):
                     exposed_ports
                 ))
 
-            mapping_container.add_property((
-                DockerContainer.docker_props_config_cmd,
-                docker_container.details['Config']['Cmd']
-            ))
+            docker_cmd = docker_container.details['Config']['Cmd']
+            if docker_cmd.__len__() > 0:
+                mapping_container.add_property((
+                    DockerContainer.docker_props_config_cmd,
+                    docker_cmd
+                ))
+            else:
+                LOGGER.debug("docker_cmd ( " + str(docker_container.details['Config']['Cmd']) +
+                             " ) not defined for container " + docker_container.name)
 
             env = {}
             for envvar in docker_container.details['Config']['Env']:

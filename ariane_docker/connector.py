@@ -69,6 +69,14 @@ class ArianeConnector(object):
             'ariane.cmp': 'echinopsii',
             'ariane.pid':  os.getpid()
         }
+        nats_args = {
+            'type': DriverFactory.DRIVER_NATS,
+            'user': docker_config.nats_user,
+            'password': docker_config.nats_password,
+            'host': docker_config.nats_host,
+            'port': docker_config.nats_port,
+            'client_properties': client_properties
+        }
         rbmq_args = {
             'type': 'RBMQ',
             'user': docker_config.rbmq_user,
@@ -106,6 +114,8 @@ class ArianeConnector(object):
         if no_error:
             if docker_config.mapping_driver_type == DriverFactory.DRIVER_RBMQ:
                 MappingService(rbmq_args)
+            elif docker_config.mapping_driver_type == DriverFactory.DRIVER_NATS:
+                MappingService(nats_args)
             else:
                 MappingService(rest_args)
             # Open session and Test Mapping Service
@@ -119,10 +129,16 @@ class ArianeConnector(object):
 
         if no_error:
             try:
-                self.injector_service = InjectorService(
-                    driver_args=rbmq_args, gears_registry_args=docker_gears_registry_conf,
-                    components_registry_args=docker_components_registry_conf
-                )
+                if docker_config.injector_driver_type == DriverFactory.DRIVER_RBMQ:
+                    self.injector_service = InjectorService(
+                        driver_args=rbmq_args, gears_registry_args=docker_gears_registry_conf,
+                        components_registry_args=docker_components_registry_conf
+                    )
+                elif docker_config.injector_driver_type == DriverFactory.DRIVER_NATS:
+                    self.injector_service = InjectorService(
+                        driver_args=nats_args, gears_registry_args=docker_gears_registry_conf,
+                        components_registry_args=docker_components_registry_conf
+                    )
             except Exception as e:
                 LOGGER.error("Problem while initializing Ariane injector service.")
                 LOGGER.error(e.__str__())

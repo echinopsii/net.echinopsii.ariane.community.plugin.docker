@@ -772,9 +772,10 @@ class MappingGear(InjectorGearSkeleton):
             docker_cmd = docker_container.details['Config']['Cmd']
             if docker_cmd is not None and docker_cmd.__len__() > 0:
                 for cmd_part in docker_cmd:
-                    if "pass" in cmd_part or "pwd" in cmd_part:
+                    if "-pass" in cmd_part or "-pwd" in cmd_part:
                         pass_index = docker_cmd.index(cmd_part)
-                        docker_cmd[pass_index+1] = "*****"
+                        if pass_index + 1 < docker_cmd.__len__():
+                            docker_cmd[pass_index+1] = "*****"
                 mapping_container.add_property((
                     DockerContainer.docker_props_config_cmd,
                     docker_cmd
@@ -786,9 +787,10 @@ class MappingGear(InjectorGearSkeleton):
             docker_entrypoint = docker_container.details['Config']['Entrypoint']
             if docker_entrypoint is not None and docker_entrypoint.__len__() > 0:
                 for entrypoint_part in docker_entrypoint:
-                    if "pass" in entrypoint_part or "pwd" in entrypoint_part:
+                    if "-pass" in entrypoint_part or "-pwd" in entrypoint_part:
                         pass_index = docker_entrypoint.index(entrypoint_part)
-                        docker_entrypoint[pass_index+1] = "*****"
+                        if pass_index + 1 < docker_entrypoint.__len__():
+                            docker_entrypoint[pass_index+1] = "*****"
 
                 mapping_container.add_property((
                     DockerContainer.docker_props_config_entrypoint,

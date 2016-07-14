@@ -770,7 +770,11 @@ class MappingGear(InjectorGearSkeleton):
                 ))
 
             docker_cmd = docker_container.details['Config']['Cmd']
-            if docker_cmd.__len__() > 0:
+            if docker_cmd is not None and docker_cmd.__len__() > 0:
+                for cmd_part in docker_cmd:
+                    if "pass" in cmd_part or "pwd" in cmd_part:
+                        pass_index = docker_cmd.index(cmd_part)
+                        docker_cmd[pass_index+1] = "*****"
                 mapping_container.add_property((
                     DockerContainer.docker_props_config_cmd,
                     docker_cmd
@@ -779,6 +783,20 @@ class MappingGear(InjectorGearSkeleton):
                 LOGGER.debug("docker_cmd ( " + str(docker_container.details['Config']['Cmd']) +
                              " ) not defined for container " + docker_container.name)
 
+            docker_entrypoint = docker_container.details['Config']['Entrypoint']
+            if docker_entrypoint is not None and docker_entrypoint.__len__() > 0:
+                for entrypoint_part in docker_entrypoint:
+                    if "pass" in entrypoint_part or "pwd" in entrypoint_part:
+                        pass_index = docker_entrypoint.index(entrypoint_part)
+                        docker_entrypoint[pass_index+1] = "*****"
+
+                mapping_container.add_property((
+                    DockerContainer.docker_props_config_entrypoint,
+                    docker_entrypoint
+                ))
+            else:
+                LOGGER.debug("docker_entrypoint ( " + str(docker_container.details['Config']['Entrypoint']) +
+                             " ) not defined for container " + docker_container.name)
             env = {}
             for envvar in docker_container.details['Config']['Env']:
                 envvar_name = envvar.split('=')[0]

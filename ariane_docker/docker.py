@@ -154,6 +154,7 @@ class DockerContainer(object):
     ariane_environment_desc = "ARIANE_ENV_DESCRIPTION"
 
     docker_props_config_cmd = "docker_cmd"
+    docker_props_config_entrypoint = "docker_entrypoint"
     docker_props_config_env = "docker_env"
     docker_props_config_exposed_ports = "docker_exposed_ports"
     docker_props_config_hostname = "docker_hostname"
@@ -552,7 +553,7 @@ class DockerContainer(object):
         top_processes = c_top['Processes'] if 'Processes' in c_top and c_top['Processes'] is not None else []
 
         if top_processes is None or top_processes.__len__() == 0:
-            #TODO: seems to be a docker python cli bug here
+            # TODO: seems to be a docker python cli bug here
             top_processes = []
             LOGGER.warning("No process found for container [" + self.did + "]" + self.name + " !?")
             LOGGER.warning(pprint.pformat(c_top))
@@ -641,7 +642,7 @@ class DockerHost(object):
         pass
 
     def to_json(self):
-        #LOGGER.debug("DockerHost.to_json")
+        # LOGGER.debug("DockerHost.to_json")
         containers_2_json = []
         for container in self.containers:
             containers_2_json.append(container.to_json())

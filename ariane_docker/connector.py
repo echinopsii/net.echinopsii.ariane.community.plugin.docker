@@ -61,7 +61,7 @@ class ArianeConnector(object):
         }
         client_properties = {
             'product': 'Ariane',
-            'information': 'Ariane Plugin ProcOS - Map your Operating System Process interaction and more ...',
+            'information': 'Ariane Plugin Docker - Map your Docker containers interaction and more ...',
             'ariane.pgurl': 'ssh://' + socket.gethostname() + "/$[/usr/local/bin/adocker {start|stop}]",
             'ariane.osi': socket.gethostname(),
             'ariane.otm': 'AROps',
@@ -113,10 +113,13 @@ class ArianeConnector(object):
 
         if no_error:
             if docker_config.mapping_driver_type == DriverFactory.DRIVER_RBMQ:
+                LOGGER.info("Starting Mapping Service through RabbitMQ")
                 MappingService(rbmq_args)
             elif docker_config.mapping_driver_type == DriverFactory.DRIVER_NATS:
+                LOGGER.info("Starting Mapping Service through NATS")
                 MappingService(nats_args)
             else:
+                LOGGER.info("Starting Mapping Service through REST")
                 MappingService(rest_args)
             # Open session and Test Mapping Service
             try:
@@ -130,11 +133,13 @@ class ArianeConnector(object):
         if no_error:
             try:
                 if docker_config.injector_driver_type == DriverFactory.DRIVER_RBMQ:
+                    LOGGER.info("Starting Injector Service through RabbitMQ")
                     self.injector_service = InjectorService(
                         driver_args=rbmq_args, gears_registry_args=docker_gears_registry_conf,
                         components_registry_args=docker_components_registry_conf
                     )
                 elif docker_config.injector_driver_type == DriverFactory.DRIVER_NATS:
+                    LOGGER.info("Starting Injector Service through NATS")
                     self.injector_service = InjectorService(
                         driver_args=nats_args, gears_registry_args=docker_gears_registry_conf,
                         components_registry_args=docker_components_registry_conf

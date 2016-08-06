@@ -20,9 +20,9 @@ import pprint
 import socket
 import traceback
 from ariane_clip3.domino import DominoReceptor
-from ariane_clip3.directory import OSInstanceService, RoutingAreaService, SubnetService, NICardService, IPAddressService, \
+from ariane_clip3.directory import OSInstanceService, RoutingAreaService, SubnetService, NICService, IPAddressService, \
     TeamService, Team, EnvironmentService, Environment, OSInstance, OSTypeService, CompanyService, Company, OSType, \
-    IPAddress, NICard, LocationService
+    IPAddress, NIC, LocationService
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
@@ -119,7 +119,7 @@ class DirectoryGear(InjectorGearSkeleton):
             if docker_network in docker_host.new_networks and docker_network.bridge_name is not None:
                 #SYNC NIC HOLDING THE SUBNET BRIDGE
                 nic_name = DockerHostGear.hostname + '.' + docker_network.bridge_name
-                nic = NICardService.find_nicard(nic_name=nic_name)
+                nic = NICService.find_nic(nic_name=nic_name)
                 if nic is not None:
                     docker_network.nic_id = nic.id
                     docker_network.nic = nic
@@ -305,9 +305,9 @@ class DirectoryGear(InjectorGearSkeleton):
                                     docker_container.osi.sync()
 
                                 if nicmcaddr is not None and nicmcaddr:
-                                    nic2save = NICardService.find_nicard(nic_mac_address=nicmcaddr)
+                                    nic2save = NICService.find_nic(nic_mac_address=nicmcaddr)
                                     if nic2save is None:
-                                        nic2save = NICard(
+                                        nic2save = NIC(
                                             name=docker_container.domain + "." + docker_container.name + "." +
                                                  docker_container_nic.name,
                                             mac_address=nicmcaddr,
@@ -351,7 +351,7 @@ class DirectoryGear(InjectorGearSkeleton):
             else:
                 for nic in docker_container.last_nics:
                     if nic not in docker_container.nics:
-                        nic2rm = NICardService.find_nicard(nic_id=nic.nic_id)
+                        nic2rm = NICService.find_nic(nic_id=nic.nic_id)
                         if nic2rm is not None:
                             ip2rm = IPAddressService.find_ip_address(ipa_id=nic2rm.nic_ipa_id)
                             if ip2rm is not None:

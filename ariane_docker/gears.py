@@ -119,7 +119,7 @@ class DirectoryGear(InjectorGearSkeleton):
             if docker_network in docker_host.new_networks and docker_network.bridge_name is not None:
                 #SYNC NIC HOLDING THE SUBNET BRIDGE
                 nic_name = DockerHostGear.hostname + '.' + docker_network.bridge_name
-                nic = NICardService.find_niCard(nic_name=nic_name)
+                nic = NICardService.find_nicard(nic_name=nic_name)
                 if nic is not None:
                     docker_network.nic_id = nic.id
                     docker_network.nic = nic
@@ -164,7 +164,7 @@ class DirectoryGear(InjectorGearSkeleton):
                            " ) environment variables !")
 
         if docker_container.team is None and DockerHostGear.docker_host_osi.team_ids.__len__()>0:
-            LOGGER.warning("Docker container team will be herited from first host team !")
+            LOGGER.warning("Docker container team will be inherited from first host team !")
             docker_container.team = TeamService.find_team(team_id=DockerHostGear.docker_host_osi.team_ids[0])
             docker_container.tid = DockerHostGear.docker_host_osi.team_ids[0]
 
@@ -197,7 +197,7 @@ class DirectoryGear(InjectorGearSkeleton):
                            " ) environment variables !")
 
         if docker_container.environment is None and DockerHostGear.docker_host_osi.environment_ids.__len__()>0:
-            LOGGER.warning("Docker container environment will be herited from first host environment !")
+            LOGGER.warning("Docker container environment will be inherited from first host environment !")
             docker_container.environment = EnvironmentService.find_environment(
                 env_id=DockerHostGear.docker_host_osi.environment_ids[0]
             )
@@ -305,12 +305,12 @@ class DirectoryGear(InjectorGearSkeleton):
                                     docker_container.osi.sync()
 
                                 if nicmcaddr is not None and nicmcaddr:
-                                    nic2save = NICardService.find_niCard(nic_mac_Address=nicmcaddr)
+                                    nic2save = NICardService.find_nicard(nic_mac_address=nicmcaddr)
                                     if nic2save is None:
                                         nic2save = NICard(
                                             name=docker_container.domain + "." + docker_container.name + "." +
                                                  docker_container_nic.name,
-                                            macAddress=nicmcaddr,
+                                            mac_address=nicmcaddr,
                                             duplex=docker_container_nic.duplex,
                                             speed=docker_container_nic.speed,
                                             mtu=docker_container_nic.mtu,
@@ -351,7 +351,7 @@ class DirectoryGear(InjectorGearSkeleton):
             else:
                 for nic in docker_container.last_nics:
                     if nic not in docker_container.nics:
-                        nic2rm = NICardService.find_niCard(nic_id=nic.nic_id)
+                        nic2rm = NICardService.find_nicard(nic_id=nic.nic_id)
                         if nic2rm is not None:
                             ip2rm = IPAddressService.find_ip_address(ipa_id=nic2rm.nic_ipa_id)
                             if ip2rm is not None:

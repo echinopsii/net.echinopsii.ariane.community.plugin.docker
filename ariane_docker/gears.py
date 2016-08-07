@@ -164,7 +164,7 @@ class DirectoryGear(InjectorGearSkeleton):
                            " ) environment variables !")
 
         if docker_container.team is None and DockerHostGear.docker_host_osi.team_ids.__len__()>0:
-            LOGGER.warning("Docker container team will be inherited from first host team !")
+            LOGGER.warning("Docker container team will be inherited from host first team !")
             docker_container.team = TeamService.find_team(team_id=DockerHostGear.docker_host_osi.team_ids[0])
             docker_container.tid = DockerHostGear.docker_host_osi.team_ids[0]
 
@@ -196,12 +196,12 @@ class DirectoryGear(InjectorGearSkeleton):
             LOGGER.warning("Environment is not specified in the docker container ( " + docker_container.name +
                            " ) environment variables !")
 
-        if docker_container.environment is None and DockerHostGear.docker_host_osi.environment_ids.__len__()>0:
-            LOGGER.warning("Docker container environment will be inherited from first host environment !")
+        if docker_container.environment is None and DockerHostGear.docker_host_osi.environment_ids.__len__() > 0:
+            LOGGER.warning("Docker container environment will be inherited from host first environment !")
             docker_container.environment = EnvironmentService.find_environment(
                 env_id=DockerHostGear.docker_host_osi.environment_ids[0]
             )
-            docker_container.eid = DockerHostGear.docker_host_osi.team_ids[0]
+            docker_container.eid = DockerHostGear.docker_host_osi.environment_ids[0]
 
     @staticmethod
     def sync_docker_container_ost(docker_container):
@@ -301,8 +301,11 @@ class DirectoryGear(InjectorGearSkeleton):
                 #    pass
 
                                 if dock_subnet is not None:
-                                    docker_container.osi.add_subnet(dock_subnet)
-                                    docker_container.osi.sync()
+                                    if docker_container.osi is not None:
+                                        docker_container.osi.add_subnet(dock_subnet)
+                                        docker_container.osi.sync()
+                                    else:
+                                        LOGGER.warning("docker_container " + docker_container.name + " osi is None ?!")
 
                                 if nicmcaddr is not None and nicmcaddr:
                                     nic2save = NICService.find_nic(nic_mac_address=nicmcaddr)
@@ -314,7 +317,7 @@ class DirectoryGear(InjectorGearSkeleton):
                                             duplex=docker_container_nic.duplex,
                                             speed=docker_container_nic.speed,
                                             mtu=docker_container_nic.mtu,
-                                            nic_osi_id=docker_container.osi.id,
+                                            nic_osi_id=docker_container.osi.id if docker_container.osi is not None else None,
                                             nic_ipa_id=ip_address.id if ip_address is not None else None
                                         )
                                         nic2save.save()
@@ -709,33 +712,39 @@ class MappingGear(InjectorGearSkeleton):
             network_properties = []
             ra_subnets = {}
             ra_list = []
-            for subnet_id in docker_container.osi.subnet_ids:
-                subnet = SubnetService.find_subnet(subnet_id)
-                if subnet is not None:
-                    if subnet.routing_area_id is not None:
-                        if subnet.routing_area_id not in ra_subnets:
-                            routing_area = RoutingAreaService.find_routing_area(ra_id=subnet.routing_area_id)
-                            if routing_area is not None:
-                                ra_list.append(routing_area)
-                                ra_subnets[subnet.routing_area_id] = []
+            if docker_container.osi is not None and docker_container.osi.subnet_ids is not None:
+                for subnet_id in docker_container.osi.subnet_ids:
+                    subnet = SubnetService.find_subnet(subnet_id)
+                    if subnet is not None:
+                        if subnet.routing_area_id is not None:
+                            if subnet.routing_area_id not in ra_subnets:
+                                routing_area = RoutingAreaService.find_routing_area(ra_id=subnet.routing_area_id)
+                                if routing_area is not None:
+                                    ra_list.append(routing_area)
+                                    ra_subnets[subnet.routing_area_id] = []
+                                    ra_subnets[subnet.routing_area_id].append({
+                                        Container.SUBNET_NAME_MAPPING_FIELD: subnet.name,
+                                        Container.SUBNET_IPAD_MAPPING_FIELD: subnet.ip,
+                                        Container.SUBNET_MASK_MAPPING_FIELD: subnet.mask,
+                                        Container.SUBNET_ISDEFAULT_MAPPING_FIELD: subnet.is_default
+                                    })
+                                else:
+                                    LOGGER.warning("Routing Area ( " + subnet.routing_area_id + " ) for subnet (" +
+                                                   subnet.name + ") not fount !?")
+                            else:
                                 ra_subnets[subnet.routing_area_id].append({
                                     Container.SUBNET_NAME_MAPPING_FIELD: subnet.name,
                                     Container.SUBNET_IPAD_MAPPING_FIELD: subnet.ip,
                                     Container.SUBNET_MASK_MAPPING_FIELD: subnet.mask,
                                     Container.SUBNET_ISDEFAULT_MAPPING_FIELD: subnet.is_default
                                 })
-                            else:
-                                LOGGER.warning("Routing Area ( " + subnet.routing_area_id + " ) for subnet (" +
-                                               subnet.name + ") not fount !?")
-                        else:
-                            ra_subnets[subnet.routing_area_id].append({
-                                Container.SUBNET_NAME_MAPPING_FIELD: subnet.name,
-                                Container.SUBNET_IPAD_MAPPING_FIELD: subnet.ip,
-                                Container.SUBNET_MASK_MAPPING_FIELD: subnet.mask,
-                                Container.SUBNET_ISDEFAULT_MAPPING_FIELD: subnet.is_default
-                            })
+                    else:
+                        LOGGER.warning("Subnet (" + subnet_id + ") not found !?")
+            else:
+                if docker_container.osi is None:
+                    LOGGER.warning("docker_container " + docker_container.name + " osi is None ?!")
                 else:
-                   LOGGER.warning("Subnet (" + subnet_id + ") not found !?")
+                    LOGGER.warning("docker_container " + docker_container.name + " osi subnets is None ?!")
 
             for ra in ra_list:
                 network_properties.append(

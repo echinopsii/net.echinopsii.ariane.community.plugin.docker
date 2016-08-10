@@ -457,10 +457,13 @@ class MappingGear(InjectorGearSkeleton):
                 target_url = None
 
                 if map_socket.source_endpoint_id is None:
+                    parent_node = None
                     if process.mdp is None:
-                        parent_node = NodeService.find_node(nid=process.mdpid)
+                        if process.mdpid is not None and process.mdpid:
+                            parent_node = NodeService.find_node(nid=process.mdpid)
                     else:
                         parent_node = process.mdp
+
                     if parent_node is not None:
                         source_endpoint = Endpoint(
                             url=source_url,

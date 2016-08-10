@@ -16,7 +16,7 @@ case "$1" in
             exit
         fi
         echo "Starting Ariane Docker"
-        nohup python3 -m ariane_docker > /var/log/ariane/adocker_nohup.log 2>&1 &
+        exec -a ariane-plg.docker python3 -m ariane_docker > /var/log/ariane/adocker_nohup.log 2>&1 &
         ;;
     stop)
         stopped=`ps -aef | grep 'ariane_docker' | grep -v grep | awk '{print $2}' | wc -l`

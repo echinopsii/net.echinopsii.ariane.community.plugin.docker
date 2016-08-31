@@ -4,3 +4,5 @@ tests/unit/__pycache__/
 ariane_docker.egg-info/
 dist/
 target/
+*.iml
+distrib/*.iml

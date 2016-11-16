@@ -75,6 +75,8 @@ class ArianeConnector(object):
             'password': docker_config.nats_password,
             'host': docker_config.nats_host,
             'port': docker_config.nats_port,
+            'rpc_timeout': docker_config.nats_rpc_timeout,
+            'rpc_retry': docker_config.nats_rpc_retry,
             'client_properties': client_properties
         }
         rbmq_args = {

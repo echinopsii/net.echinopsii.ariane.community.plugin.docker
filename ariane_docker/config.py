@@ -34,6 +34,8 @@ class Config(object):
         self.nats_port = None
         self.nats_user = None
         self.nats_password = None
+        self.nats_rpc_timeout = 5   # 5 sec timeout by default
+        self.nats_rpc_retry = 3   # 3 retry by default
 
         self.rbmq_host = None
         self.rbmq_port = None
@@ -90,6 +92,12 @@ class Config(object):
             self.nats_password = config['ariane_server']['nats_password']
             if self.nats_password is None or not self.nats_password:
                 ariane_server_missing_fields.append('nats_password')
+
+            if 'nats_rpc_timeout' in config['ariane_server']:
+                self.nats_rpc_timeout = config['ariane_server']['nats_rpc_timeout']
+
+            if 'nats_rpc_retry' in config['ariane_server']:
+                self.nats_rpc_timeout = config['ariane_server']['nats_rpc_retry']
 
             self.rbmq_host = config['ariane_server']['rbmq_host']
             if self.rbmq_host is None or not self.rbmq_host:

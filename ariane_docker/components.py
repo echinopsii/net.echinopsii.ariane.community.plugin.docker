@@ -18,12 +18,12 @@
 import datetime
 import json
 import logging
-#import pprint
+# import pprint
 import socket
 import traceback
 from ariane_clip3.domino import DominoReceptor
 from ariane_clip3.injector import InjectorComponentSkeleton, InjectorCachedComponent
-import time
+# import time
 from ariane_docker.docker import DockerHost
 
 __author__ = 'mffrench'
@@ -52,9 +52,9 @@ class DockerComponent(InjectorComponentSkeleton):
         )
         cached_blob = self.component_cache_actor.blob.get()
         if cached_blob is not None and cached_blob:
-            #LOGGER.debug("------------------------------------------------------------------")
-            #LOGGER.debug("Cached blob is :\n" + pprint.pformat(cached_blob))
-            #LOGGER.debug("------------------------------------------------------------------")
+            # LOGGER.debug("------------------------------------------------------------------")
+            # LOGGER.debug("Cached blob is :\n" + pprint.pformat(cached_blob))
+            # LOGGER.debug("------------------------------------------------------------------")
             self.docker_host = DockerHost.from_json(cached_blob)
         else:
             self.docker_host = DockerHost()
@@ -79,13 +79,12 @@ class DockerComponent(InjectorComponentSkeleton):
     def data_blob(self):
         LOGGER.debug("DockerComponent.data_blob")
         data_blob = self.docker_host.to_json()
-        #LOGGER.debug("------------------------------------------------------------------")
-        #LOGGER.debug("Cached blob is :\n" + pprint.pformat(data_blob))
-        #LOGGER.debug("------------------------------------------------------------------")
+        # LOGGER.debug("------------------------------------------------------------------")
+        # LOGGER.debug("Cached blob is :\n" + pprint.pformat(data_blob))
+        # LOGGER.debug("------------------------------------------------------------------")
         return json.dumps(data_blob)
 
     def sniff_on_procos_event(self, msg):
-        LOGGER.debug("DockerComponent.sniff_on_procos_event")
         LOGGER.debug("DockerComponent.sniff_on_procos_event - Message received : " + msg)
         if self.docker_gear_actor_ref.proxy().is_initialized().get():
             self.sniff()

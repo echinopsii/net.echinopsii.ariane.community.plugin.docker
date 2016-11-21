@@ -24,6 +24,7 @@ from ariane_clip3.domino import DominoReceptor
 from ariane_clip3.directory import OSInstanceService, RoutingAreaService, SubnetService, NICService, IPAddressService, \
     TeamService, Team, EnvironmentService, Environment, OSInstance, OSTypeService, CompanyService, Company, OSType, \
     IPAddress, NIC, LocationService
+from ariane_clip3.exceptions import ArianeMessagingTimeoutError
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
@@ -382,25 +383,33 @@ class DirectoryGear(InjectorGearSkeleton):
     def init_ariane_directories(self, component):
         docker_host = component.docker_host.get()
         LOGGER.debug("DirectoryGear.init_ariane_directories - init start")
-        start_time = timeit.default_timer()
-        self.sync_docker_host_osi(docker_host)
-        self.sync_docker_host_lra(docker_host)
-        self.sync_docker_networks(docker_host)
-        self.sync_docker_containers(docker_host)
-        sync_proc_time = timeit.default_timer()-start_time
-        LOGGER.info('DirectoryGear.init_ariane_directories - time : ' + str(sync_proc_time))
-        LOGGER.debug("DirectoryGear.init_ariane_directories - init done")
+        try:
+            start_time = timeit.default_timer()
+            self.sync_docker_host_osi(docker_host)
+            self.sync_docker_host_lra(docker_host)
+            self.sync_docker_networks(docker_host)
+            self.sync_docker_containers(docker_host)
+            sync_proc_time = timeit.default_timer()-start_time
+            LOGGER.info('DirectoryGear.init_ariane_directories - time : ' + str(sync_proc_time))
+            LOGGER.debug("DirectoryGear.init_ariane_directories - init done")
+        except Exception as e:
+            LOGGER.error("DirectoryGear.init_ariane_directories - " + e.__str__())
+            LOGGER.error("DirectoryGear.init_ariane_directories - " + traceback.format_exc())
 
     def synchronize_with_ariane_directories(self, component):
         if self.running:
-            start_time = timeit.default_timer()
-            docker_host = component.docker_host.get()
-            LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories - sync start")
-            self.update_ariane_directories(docker_host)
-            self.update_count += 1
-            sync_proc_time = timeit.default_timer()-start_time
-            LOGGER.info('DirectoryGear.synchronize_with_ariane_directories - time : ' + str(sync_proc_time))
-            LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories - sync done")
+            try:
+                start_time = timeit.default_timer()
+                docker_host = component.docker_host.get()
+                LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories - sync start")
+                self.update_ariane_directories(docker_host)
+                self.update_count += 1
+                sync_proc_time = timeit.default_timer()-start_time
+                LOGGER.info('DirectoryGear.synchronize_with_ariane_directories - time : ' + str(sync_proc_time))
+                LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories - sync done")
+            except Exception as e:
+                LOGGER.error("DirectoryGear.synchronize_with_ariane_directories - " + e.__str__())
+                LOGGER.error("DirectoryGear.synchronize_with_ariane_directories - " + traceback.format_exc())
         else:
             LOGGER.warning("Synchronization requested but docker_directory_gear@" + str(DockerHostGear.hostname) +
                            " is not running.")
@@ -961,36 +970,53 @@ class MappingGear(InjectorGearSkeleton):
             SessionService.close_session()
             sys.exit(-1)
         else:
-            docker_host = component.docker_host.get()
             try:
                 LOGGER.debug("MappingGear.init_ariane_mapping - init start")
+                docker_host = component.docker_host.get()
                 self.synchronize_container(docker_host)
                 SessionService.commit()
                 LOGGER.debug("MappingGear.init_ariane_mapping - init done")
+                SessionService.close_session()
             except Exception as e:
-                LOGGER.error(e.__str__())
-                LOGGER.error(traceback.format_exc())
-                SessionService.rollback()
-            SessionService.close_session()
+                LOGGER.error("MappingGear.init_ariane_mapping - " + e.__str__())
+                LOGGER.error("MappingGear.init_ariane_mapping - " + traceback.format_exc())
+                try:
+                    SessionService.rollback()
+                    SessionService.close_session()
+                except Exception as e:
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
 
     def synchronize_with_ariane_mapping(self, component):
         if self.running:
-            start_time = timeit.default_timer()
-            SessionService.open_session("ArianeDocker_" + socket.gethostname())
-            docker_host = component.docker_host.get()
-            LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync start")
             try:
+                start_time = timeit.default_timer()
+                SessionService.open_session("ArianeDocker_" + socket.gethostname())
+                docker_host = component.docker_host.get()
+                LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync start")
                 self.synchronize_container(docker_host)
                 SessionService.commit()
                 self.update_count += 1
+                LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync done")
+                SessionService.close_session()
+                sync_proc_time = timeit.default_timer()-start_time
+                LOGGER.info('MappingGear.synchronize_with_ariane_mapping - time : ' + str(sync_proc_time))
+            except ArianeMessagingTimeoutError as e:
+                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
+                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
+                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - rollback to previous state")
+                component.rollback().get()
             except Exception as e:
-                LOGGER.error(e.__str__())
-                LOGGER.error(traceback.format_exc())
-                SessionService.rollback()
-            LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync done")
-            SessionService.close_session()
-            sync_proc_time = timeit.default_timer()-start_time
-            LOGGER.info('MappingGear.synchronize_with_ariane_mapping - time : ' + str(sync_proc_time))
+                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
+                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
+                try:
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - rollback to previous state")
+                    SessionService.rollback()
+                    SessionService.close_session()
+                    component.rollback().get()
+                except Exception as e:
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
         else:
             LOGGER.warning('Synchronization requested but docker_mapping_gear@' +
                            str(DockerHostGear.hostname) + ' is not running.')

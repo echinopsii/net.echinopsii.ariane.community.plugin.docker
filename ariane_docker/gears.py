@@ -98,7 +98,8 @@ class DirectoryGear(InjectorGearSkeleton):
         LOGGER.debug("DirectoryGear.sync_docker_host_lra")
         if cached_docker_host.lra_id is not None:
             DockerHostGear.docker_host_lra = RoutingAreaService.find_routing_area(ra_id=cached_docker_host.lra_id)
-            if DockerHostGear.docker_host_lra.name != DockerHostGear.hostname + '.local':
+            if DockerHostGear.docker_host_lra is not None and \
+                    DockerHostGear.docker_host_lra.name != DockerHostGear.hostname + '.local':
                 DockerHostGear.docker_host_lra = None
                 cached_docker_host.lra_id = None
 
@@ -1001,11 +1002,6 @@ class MappingGear(InjectorGearSkeleton):
                 SessionService.close_session()
                 sync_proc_time = timeit.default_timer()-start_time
                 LOGGER.info('MappingGear.synchronize_with_ariane_mapping - time : ' + str(sync_proc_time))
-            except ArianeMessagingTimeoutError as e:
-                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
-                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
-                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - rollback to previous state")
-                component.rollback().get()
             except Exception as e:
                 LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
                 LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())

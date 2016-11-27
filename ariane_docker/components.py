@@ -20,6 +20,7 @@ import json
 import logging
 # import pprint
 import socket
+import timeit
 import traceback
 from ariane_clip3.domino import DominoReceptor
 from ariane_clip3.injector import InjectorComponentSkeleton, InjectorCachedComponent
@@ -94,13 +95,15 @@ class DockerComponent(InjectorComponentSkeleton):
 
     def sniff(self, synchronize_with_ariane_dbs=True):
         try:
-            LOGGER.info("DockerComponent.sniff")
+            start_time = timeit.default_timer()
             self.cache(refreshing=True, next_action=InjectorCachedComponent.action_update, data_blob=self.data_blob())
             self.docker_host.update(self.cli)
             self.cache(refreshing=False, next_action=InjectorCachedComponent.action_update, data_blob=self.data_blob())
             self.version += 1
+            sniff_time = timeit.default_timer()-start_time
+            LOGGER.info("DockerComponent.sniff - time : " + str(sniff_time))
             if synchronize_with_ariane_dbs and self.docker_gear_actor_ref is not None:
                 self.docker_gear_actor_ref.proxy().synchronize_with_ariane_dbs()
         except Exception as e:
-            LOGGER.error(e.__str__())
-            LOGGER.error(traceback.format_exc())
+            LOGGER.error("DockerComponent.sniff - exception raised : " + e.__str__())
+            LOGGER.debug("DockerComponent.sniff - exception raised : " + traceback.format_exc())

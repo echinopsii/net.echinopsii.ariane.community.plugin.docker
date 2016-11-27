@@ -63,6 +63,14 @@ class DirectoryGear(InjectorGearSkeleton):
             self.running = False
             self.cache(running=self.running)
 
+    def on_failure(self, exception_type, exception_value, traceback_):
+        LOGGER.debug("DirectoryGear.on_failure")
+        LOGGER.error("DirectoryGear.on_failure - " + exception_type.__str__() + "/" + exception_value.__str__())
+        LOGGER.error("DirectoryGear.on_failure - " + traceback_.format_exc())
+        if self.running:
+            self.running = False
+            self.cache(running=self.running)
+
     def gear_start(self):
         LOGGER.debug("DirectoryGear.gear_start")
         self.on_start()
@@ -157,7 +165,7 @@ class DirectoryGear(InjectorGearSkeleton):
                 except Exception as e:
                     LOGGER.warning("Unable to save team (" + str(team_from_conf) + ") in Ariane Directories !")
                     LOGGER.warning(e.__str__())
-                    LOGGER.warning(traceback.format_exc())
+                    LOGGER.debug(traceback.format_exc())
 
             if team_from_ariane is not None:
                 docker_container.team = team_from_ariane
@@ -190,7 +198,7 @@ class DirectoryGear(InjectorGearSkeleton):
                 except Exception as e:
                     LOGGER.warning("Unable to save environment (" + str(env_from_conf) + ") in Ariane Directories !")
                     LOGGER.warning(e.__str__())
-                    LOGGER.warning(traceback.format_exc())
+                    LOGGER.debug(traceback.format_exc())
 
             if env_from_ariane is not None:
                 docker_container.environment = env_from_ariane
@@ -395,7 +403,7 @@ class DirectoryGear(InjectorGearSkeleton):
             LOGGER.debug("DirectoryGear.init_ariane_directories - init done")
         except Exception as e:
             LOGGER.error("DirectoryGear.init_ariane_directories - " + e.__str__())
-            LOGGER.error("DirectoryGear.init_ariane_directories - " + traceback.format_exc())
+            LOGGER.debug("DirectoryGear.init_ariane_directories - " + traceback.format_exc())
 
     def synchronize_with_ariane_directories(self, component):
         if self.running:
@@ -410,7 +418,7 @@ class DirectoryGear(InjectorGearSkeleton):
                 LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories - sync done")
             except Exception as e:
                 LOGGER.error("DirectoryGear.synchronize_with_ariane_directories - " + e.__str__())
-                LOGGER.error("DirectoryGear.synchronize_with_ariane_directories - " + traceback.format_exc())
+                LOGGER.debug("DirectoryGear.synchronize_with_ariane_directories - " + traceback.format_exc())
         else:
             LOGGER.warning("Synchronization requested but docker_directory_gear@" + str(DockerHostGear.hostname) +
                            " is not running.")
@@ -438,6 +446,14 @@ class MappingGear(InjectorGearSkeleton):
 
     def on_stop(self):
         LOGGER.debug("MappingGear.on_stop")
+        if self.running:
+            self.running = False
+            self.cache(running=self.running)
+
+    def on_failure(self, exception_type, exception_value, traceback_):
+        LOGGER.debug("MappingGear.on_failure")
+        LOGGER.error("MappingGear.on_failure - " + exception_type.__str__() + "/" + exception_value.__str__())
+        LOGGER.error("MappingGear.on_failure - " + traceback_.format_exc())
         if self.running:
             self.running = False
             self.cache(running=self.running)
@@ -980,13 +996,22 @@ class MappingGear(InjectorGearSkeleton):
                 SessionService.close_session()
             except Exception as e:
                 LOGGER.error("MappingGear.init_ariane_mapping - " + e.__str__())
-                LOGGER.error("MappingGear.init_ariane_mapping - " + traceback.format_exc())
+                LOGGER.debug("MappingGear.init_ariane_mapping - " + traceback.format_exc())
                 try:
+                    LOGGER.error("MappingGear.init_ariane_mapping - mapping rollback to previous state")
                     SessionService.rollback()
+                except Exception as e:
+                    LOGGER.error("MappingGear.init_ariane_mapping - exception on mapping rollback : " + e.__str__())
+                    LOGGER.debug("MappingGear.init_ariane_mapping - exception on mapping rollback : " +
+                                 traceback.format_exc())
+                try:
+                    LOGGER.error("MappingGear.init_ariane_mapping - mapping session close")
                     SessionService.close_session()
                 except Exception as e:
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
+                    LOGGER.error("MappingGear.init_ariane_mapping - exception on mapping session closing : " +
+                                 e.__str__())
+                    LOGGER.debug("MappingGear.init_ariane_mapping - exception on mapping session closing : " +
+                                 traceback.format_exc())
 
     def synchronize_with_ariane_mapping(self, component):
         if self.running:
@@ -1004,15 +1029,29 @@ class MappingGear(InjectorGearSkeleton):
                 LOGGER.info('MappingGear.synchronize_with_ariane_mapping - time : ' + str(sync_proc_time))
             except Exception as e:
                 LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
-                LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
+                LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
                 try:
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - rollback to previous state")
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - mapping rollback to previous state")
                     SessionService.rollback()
+                except Exception as e:
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - exception on mapping rollback : " +
+                                 e.__str__())
+                    LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - exception on mapping rollback : " +
+                                 traceback.format_exc())
+                try:
                     SessionService.close_session()
+                except Exception as e:
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - exception on mapping session closing : "
+                                 + e.__str__())
+                    LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - exception on mapping session closing : "
+                                 + traceback.format_exc())
+                try:
                     component.rollback().get()
                 except Exception as e:
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
+                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - exception on injector cache rollback : "
+                                 + e.__str__())
+                    LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - exception on injector cache rollback : "
+                                 + traceback.format_exc())
         else:
             LOGGER.warning('Synchronization requested but docker_mapping_gear@' +
                            str(DockerHostGear.hostname) + ' is not running.')
@@ -1111,7 +1150,7 @@ class DockerHostGear(InjectorGearSkeleton):
             self.cached_gear_actor.remove().get()
         except Exception as e:
             LOGGER.error(e.__str__())
-            LOGGER.error(traceback.format_exc())
+            LOGGER.debug(traceback.format_exc())
 
     def gear_start(self):
         LOGGER.debug("DockerHostGear.gear_start")

@@ -75,8 +75,8 @@ class ArianeConnector(object):
             'password': docker_config.nats_password,
             'host': docker_config.nats_host,
             'port': docker_config.nats_port,
-            'rpc_timeout': docker_config.nats_rpc_timeout,
-            'rpc_retry': docker_config.nats_rpc_retry,
+            'rpc_timeout': docker_config.rpc_timeout,
+            'rpc_retry': docker_config.rpc_retry,
             'client_properties': client_properties
         }
         rbmq_args = {
@@ -86,6 +86,8 @@ class ArianeConnector(object):
             'host': docker_config.rbmq_host,
             'port': docker_config.rbmq_port,
             'vhost': docker_config.rbmq_vhost,
+            'rpc_timeout': docker_config.rpc_timeout,
+            'rpc_retry': docker_config.rpc_retry,
             'client_properties': client_properties
         }
         self.gears_registry_cache_id = 'ariane.community.plugin.docker.gears.cache'

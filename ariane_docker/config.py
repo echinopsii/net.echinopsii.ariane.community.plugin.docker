@@ -34,14 +34,15 @@ class Config(object):
         self.nats_port = None
         self.nats_user = None
         self.nats_password = None
-        self.nats_rpc_timeout = 10   # 10 sec timeout by default
-        self.nats_rpc_retry = 2   # 2 retry by default
 
         self.rbmq_host = None
         self.rbmq_port = None
         self.rbmq_user = None
         self.rbmq_password = None
         self.rbmq_vhost = None
+
+        self.rpc_timeout = 10   # 10 sec timeout by default
+        self.rpc_retry = 2   # 2 retry by default
 
         self.sleeping_period = 20
         self.log_conf_file_path = "/etc/ariane/adocker_logging.json"
@@ -93,12 +94,6 @@ class Config(object):
             if self.nats_password is None or not self.nats_password:
                 ariane_server_missing_fields.append('nats_password')
 
-            if 'nats_rpc_timeout' in config['ariane_server']:
-                self.nats_rpc_timeout = config['ariane_server']['nats_rpc_timeout']
-
-            if 'nats_rpc_retry' in config['ariane_server']:
-                self.nats_rpc_retry = config['ariane_server']['nats_rpc_retry']
-
             self.rbmq_host = config['ariane_server']['rbmq_host']
             if self.rbmq_host is None or not self.rbmq_host:
                 ariane_server_missing_fields.append('rbmq_host')
@@ -118,6 +113,12 @@ class Config(object):
             self.rbmq_vhost = config['ariane_server']['rbmq_vhost']
             if self.rbmq_vhost is None or not self.rbmq_vhost:
                 ariane_server_missing_fields.append('rbmq_vhost')
+
+            if 'rpc_timeout' in config['ariane_server']:
+                self.rpc_timeout = config['ariane_server']['rpc_timeout']
+
+            if 'rpc_retry' in config['ariane_server']:
+                self.rpc_retry = config['ariane_server']['rpc_retry']
         else:
             raise exceptions.ArianeDockerConfigMandatorySectionMissingError('ariane_server')
 

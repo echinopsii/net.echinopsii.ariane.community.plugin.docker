@@ -92,16 +92,16 @@ class ArianeConnector(object):
         }
         self.gears_registry_cache_id = 'ariane.community.plugin.docker.gears.cache'
         docker_gears_registry_conf = {
-            'registry.name': 'Ariane Docker plugin gears registry',
+            'registry.name': 'Ariane Docker Plugin Gears Registry',
             'registry.cache.id': self.gears_registry_cache_id,
-            'registry.cache.name': 'Ariane Docker plugin gears cache',
+            'registry.cache.name': 'Ariane Docker Plugin Gears Cache',
             'cache.mgr.name': 'ARIANE_PLUGIN_DOCKER_GEARS_CACHE_MGR'
         }
         self.components_registry_cache_id = 'ariane.community.plugin.docker.components.cache'
         docker_components_registry_conf = {
-            'registry.name': 'Ariane Docker plugin components registry',
+            'registry.name': 'Ariane Docker Plugin Components Registry',
             'registry.cache.id': self.components_registry_cache_id,
-            'registry.cache.name': 'Ariane Docker plugin components cache',
+            'registry.cache.name': 'Ariane Docker Plugin Components Cache',
             'cache.mgr.name': 'ARIANE_PLUGIN_DOCKER_COMPONENTS_CACHE_MGR'
         }
 

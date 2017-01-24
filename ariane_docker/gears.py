@@ -24,7 +24,6 @@ from ariane_clip3.domino import DominoReceptor
 from ariane_clip3.directory import OSInstanceService, RoutingAreaService, SubnetService, NICService, IPAddressService, \
     TeamService, Team, EnvironmentService, Environment, OSInstance, OSTypeService, CompanyService, Company, OSType, \
     IPAddress, NIC, LocationService
-from ariane_clip3.exceptions import ArianeMessagingTimeoutError
 from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
@@ -128,13 +127,13 @@ class DirectoryGear(InjectorGearSkeleton):
         # CREATION AND REMOVAL OF DOCKER NETWORK ARE DONE BY ARIANE PROCOS PLUGIN
         for docker_network in docker_host.networks:
             if docker_network in docker_host.new_networks and docker_network.bridge_name is not None:
-                #SYNC NIC HOLDING THE SUBNET BRIDGE
+                # SYNC NIC HOLDING THE SUBNET BRIDGE
                 nic_name = DockerHostGear.hostname + '.' + docker_network.bridge_name
                 nic = NICService.find_nic(nic_name=nic_name)
                 if nic is not None:
                     docker_network.nic_id = nic.id
                     docker_network.nic = nic
-                    #SYNC SUBNET
+                    # SYNC SUBNET
                     if nic.nic_ipa_id > 0:
                         ip_address = IPAddressService.find_ip_address(ipa_id=nic.nic_ipa_id)
                         subnet = SubnetService.find_subnet(sb_id=ip_address.ipa_subnet_id)
@@ -174,7 +173,7 @@ class DirectoryGear(InjectorGearSkeleton):
             LOGGER.warning("Team is not specified in the docker container ( " + docker_container.name +
                            " ) environment variables !")
 
-        if docker_container.team is None and DockerHostGear.docker_host_osi.team_ids.__len__()>0:
+        if docker_container.team is None and DockerHostGear.docker_host_osi.team_ids.__len__() > 0:
             LOGGER.warning("Docker container team will be inherited from host first team !")
             docker_container.team = TeamService.find_team(team_id=DockerHostGear.docker_host_osi.team_ids[0])
             docker_container.tid = DockerHostGear.docker_host_osi.team_ids[0]
@@ -256,7 +255,7 @@ class DirectoryGear(InjectorGearSkeleton):
                 name=docker_container.name + '.' + DockerHostGear.hostname,
                 description=docker_container.name + '@' + DockerHostGear.hostname,
                 admin_gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                               docker_container.name + ' /bin/bash]',
+                docker_container.name + ' /bin/bash]',
                 osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
                 osi_ost_id=docker_container.ostid,
                 osi_environment_ids=env_ids,
@@ -272,7 +271,7 @@ class DirectoryGear(InjectorGearSkeleton):
         for docker_container_nic in docker_container.nics:
             if docker_container_nic not in docker_container.last_nics:
                 if not docker_container_nic.ipv4_address.startswith('127'):
-                    #LOGGER.debug(str(docker_container_nic))
+                    # LOGGER.debug(str(docker_container_nic))
                     for docker_network in docker_host_networks:
                         if docker_network.subnet is None and docker_network.subnet_id is not None:
                             docker_network.subnet = SubnetService.find_subnet(sb_name=docker_network.subnet_id)
@@ -298,18 +297,18 @@ class DirectoryGear(InjectorGearSkeleton):
                                         ip_address.ipa_os_instance_id = docker_container.osi.id
                                         ip_address.save()
                                 nicmcaddr = docker_container_nic.mac_address
-                                #LOGGER.debug(str(ip_address))
-                #else:
-                #    TODO: currently docker container local subnet and routing area.
-                #    TODO: need to enable multiple routing area for one subnet on ariane directories
-                #    NOTE: anyway this feature will probably not needed as docker routing is done from the host
-                #    loopback_subnet_conf = SubnetConfig(
-                #        name=docker_container.name + "." + docker_container.domain + ".loopback",
-                #        description=docker_container.name + "." + docker_container.domain + " loopback subnet",
-                #        subnet_ip="127.0.0.0",
-                #        subnet_mask="255.0.0.0"
-                #    )
-                #    pass
+                                # LOGGER.debug(str(ip_address))
+                # else:
+                #     TODO: currently docker container local subnet and routing area.
+                #     TODO: need to enable multiple routing area for one subnet on ariane directories
+                #     NOTE: anyway this feature will probably not needed as docker routing is done from the host
+                #     loopback_subnet_conf = SubnetConfig(
+                #         name=docker_container.name + "." + docker_container.domain + ".loopback",
+                #         description=docker_container.name + "." + docker_container.domain + " loopback subnet",
+                #         subnet_ip="127.0.0.0",
+                #         subnet_mask="255.0.0.0"
+                #     )
+                #     pass
 
                                 if dock_subnet is not None:
                                     if docker_container.osi is not None:
@@ -323,7 +322,7 @@ class DirectoryGear(InjectorGearSkeleton):
                                     if nic2save is None:
                                         nic2save = NIC(
                                             name=docker_container.domain + "." + docker_container.name + "." +
-                                                 docker_container_nic.name,
+                                            docker_container_nic.name,
                                             mac_address=nicmcaddr,
                                             duplex=docker_container_nic.duplex,
                                             speed=docker_container_nic.speed,
@@ -348,8 +347,8 @@ class DirectoryGear(InjectorGearSkeleton):
             DirectoryGear.sync_docker_container_ip_and_nic(docker_container, docker_host.networks)
             docker_container.osi.sync()
 
-        #LOGGER.debug("last containers: " + pprint.pformat(docker_host.last_containers))
-        #LOGGER.debug("current containers: " + pprint.pformat(docker_host.containers))
+        # LOGGER.debug("last containers: " + pprint.pformat(docker_host.last_containers))
+        # LOGGER.debug("current containers: " + pprint.pformat(docker_host.containers))
         for docker_container in docker_host.last_containers:
             if docker_container not in docker_host.containers:
                 if docker_container.oid is not None:
@@ -480,7 +479,8 @@ class MappingGear(InjectorGearSkeleton):
             elif map_socket.type == "SOCK_DGRAM":
                 proto = "udp://"
             else:
-                LOGGER.warning("socket type " + map_socket.type + " currently not supported !")
+                LOGGER.warning("MappingGear.synchronize_new_map_socket - socket type " + map_socket.type +
+                               " currently not supported !")
 
             if proto is not None:
                 source_endpoint = None
@@ -488,6 +488,9 @@ class MappingGear(InjectorGearSkeleton):
 
                 target_endpoint = None
                 target_url = None
+                is_in_container_destination = False
+                unable_to_define_target_ep = False
+                remote_target_ep_commit_counter = 0
 
                 if map_socket.source_endpoint_id is None:
                     parent_node = None
@@ -502,10 +505,19 @@ class MappingGear(InjectorGearSkeleton):
                             url=source_url,
                             parent_node=parent_node
                         )
+                        if map_socket.type is not None and map_socket.type:
+                            source_endpoint.add_property(('type', map_socket.type))
+                        if map_socket.family is not None and map_socket.family:
+                            source_endpoint.add_property(('family', map_socket.family))
+                        if map_socket.status is not None and map_socket.status:
+                            source_endpoint.add_property(('status', map_socket.status))
+                        if map_socket.file_descriptors is not None and map_socket.file_descriptors.__len__() > 0:
+                            source_endpoint.add_property(('file descriptors', map_socket.file_descriptors))
                         source_endpoint.save()
                         map_socket.source_endpoint_id = source_endpoint.id
                     else:
-                        LOGGER.warning("Fail to sync parent node for source endpoint " + source_url)
+                        LOGGER.warning("MappingGear.synchronize_new_map_socket - Fail to sync parent node for "
+                                       "source endpoint " + source_url)
                 else:
                     source_endpoint = EndpointService.find_endpoint(eid=map_socket.source_endpoint_id)
 
@@ -515,17 +527,20 @@ class MappingGear(InjectorGearSkeleton):
                 if target_url is not None:
                     if map_socket.destination_endpoint_id is None:
                         if docker_container.is_local_destination(map_socket):
-                            if not docker_container.is_in_container_destination(map_socket):
+                            is_in_container_destination = docker_container.is_in_container_destination(map_socket)
+                            if not is_in_container_destination:
                                 selector = "endpointURL =~ '" + target_url + ".*'"
                                 endpoints = EndpointService.find_endpoint(selector=selector)
                                 if endpoints is not None:
                                     if endpoints.__len__() == 1:
                                         target_endpoint = endpoints[0]
                                     else:
-                                        LOGGER.warning("Several endpoints found for selector " + selector +
+                                        LOGGER.warning("MappingGear.synchronize_new_map_socket - Several endpoints "
+                                                       "found for selector " + selector +
                                                        ". There should be one endpoint only !")
                                 else:
-                                    LOGGER.warning("No endpoint for selector " + selector + "  ?!")
+                                    LOGGER.warning("MappingGear.synchronize_new_map_socket - No endpoint for selector "
+                                                   + selector + "  ?!")
                             else:
                                 target_local_process = None
                                 mirror_map_socket = None
@@ -547,24 +562,51 @@ class MappingGear(InjectorGearSkeleton):
                                                 url=target_url,
                                                 parent_node=parent_node
                                             )
+                                            if mirror_map_socket.type is not None and mirror_map_socket.type:
+                                                target_endpoint.add_property(('type', mirror_map_socket.type))
+                                            if mirror_map_socket.family is not None and mirror_map_socket.family:
+                                                target_endpoint.add_property(('family', mirror_map_socket.family))
+                                            if mirror_map_socket.status is not None and mirror_map_socket.status:
+                                                target_endpoint.add_property(('status', mirror_map_socket.status))
+                                            if mirror_map_socket.file_descriptors is not None and \
+                                                    mirror_map_socket.file_descriptors.__len__() > 0:
+                                                target_endpoint.add_property((
+                                                    'file descriptors', mirror_map_socket.file_descriptors
+                                                ))
                                             target_endpoint.save()
                                             mirror_map_socket.source_endpoint_id = target_endpoint.id
                                         else:
-                                            LOGGER.warning("Fail to sync parent node for target endpoint " + target_url)
+                                            LOGGER.warning("MappingGear.synchronize_new_map_socket - "
+                                                           "Fail to sync parent node for target endpoint " + target_url)
                                     else:
                                         target_endpoint = EndpointService.find_endpoint(
                                             eid=mirror_map_socket.source_endpoint_id
                                         )
                         else:
-                            LOGGER.warning("Non local docker link not supported currently !")
+                            LOGGER.debug("MappingGear.synchronize_new_map_socket - source_url: " + source_url +
+                                         "; target_url: " + target_url)
+                            selector = "endpointURL =~ '" + target_url + ".*'"
+                            endpoints = EndpointService.find_endpoint(selector=selector)
+                            if endpoints is not None:
+                                if endpoints.__len__() == 1:
+                                    target_endpoint = endpoints[0]
+                                else:
+                                    LOGGER.warning("MappingGear.synchronize_new_map_socket - Several endpoints found "
+                                                   "for selector " + selector + ". There should be one endpoint only !")
+                            else:
+                                LOGGER.warning("MappingGear.synchronize_new_map_socket - No endpoint for selector " +
+                                               selector + "  ?!")
                     else:
                         target_endpoint = EndpointService.find_endpoint(map_socket.destination_endpoint_id)
 
                     if source_endpoint is None:
-                        LOGGER.warning("Unable to define source endpoint: " + source_url)
+                        LOGGER.warning("MappingGear.synchronize_new_map_socket - Unable to define source endpoint: " +
+                                       source_url)
                     else:
                         if target_endpoint is None:
-                            LOGGER.warning("Unable to define target endpoint: " + target_url)
+                            unable_to_define_target_ep = True
+                            LOGGER.warning("MappingGear.synchronize_new_map_socket - Unable to define target endpoint: "
+                                           + target_url)
                         else:
                             map_socket.destination_endpoint_id = target_endpoint.id
                             map_socket.destination_node_id = target_endpoint.parent_node_id
@@ -580,8 +622,14 @@ class MappingGear(InjectorGearSkeleton):
                                 link.save()
                                 map_socket.transport_id = transport.id
                                 map_socket.link_id = link.id
+
+                    if not is_in_container_destination and not unable_to_define_target_ep:
+                        remote_target_ep_commit_counter += 1
+                        if remote_target_ep_commit_counter == 5:
+                            SessionService.commit()
+                            remote_target_ep_commit_counter = 0
         else:
-            LOGGER.warning('no source ip / port - ' + str(map_socket))
+            LOGGER.warning("MappingGear.synchronize_new_map_socket - no source ip / port - " + str(map_socket))
 
     @staticmethod
     def synchronize_removed_map_socket(docker_container, process, map_socket):
@@ -595,14 +643,14 @@ class MappingGear(InjectorGearSkeleton):
                 LOGGER.warning("Dead socket (source endpoint : " + str(map_socket.source_endpoint_id) +
                                ") doesn't exist anymore on DB!")
 
-        #if map_socket.destination_endpoint_id is not None:
-        #    destination_endpoint = EndpointService.find_endpoint(eid=map_socket.destination_endpoint_id)
-        #    if destination_endpoint is not None:
-        #        LOGGER.debug("Remove (destination) endpoint " + destination_endpoint.url)
-        #        destination_endpoint.remove()
-        #    else:
-        #        LOGGER.warning("Dead socket (destination endpoint : " + str(map_socket.source_endpoint_id) +
-        #                       ") doesn't exist anymore on DB!")
+        # if map_socket.destination_endpoint_id is not None:
+        #     destination_endpoint = EndpointService.find_endpoint(eid=map_socket.destination_endpoint_id)
+        #     if destination_endpoint is not None:
+        #         LOGGER.debug("Remove (destination) endpoint " + destination_endpoint.url)
+        #         destination_endpoint.remove()
+        #     else:
+        #         LOGGER.warning("Dead socket (destination endpoint : " + str(map_socket.source_endpoint_id) +
+        #                        ") doesn't exist anymore on DB!")
 
     @staticmethod
     def synchronize_process_sockets(docker_container, process):
@@ -723,6 +771,11 @@ class MappingGear(InjectorGearSkeleton):
             is_ok = False
             LOGGER.warning("Docker container " + docker_container.name + " linked team not found !?")
 
+        mapping_container.add_property((
+            Container.OWNER_MAPPING_PROPERTY,
+            'docker_host_gear@' + str(DockerHostGear.hostname)
+        ))
+
         if is_ok:
             if DockerHostGear.docker_host_lra.loc_ids.__len__() > 1:
                 LOGGER.warning("Localhost routing area " + DockerHostGear.docker_host_lra.name +
@@ -794,8 +847,8 @@ class MappingGear(InjectorGearSkeleton):
                 mapping_container.add_property((Container.NETWORK_MAPPING_PROPERTIES, network_properties))
 
             team_properties = {
-                    Container.TEAM_NAME_MAPPING_FIELD: docker_container.team.name,
-                    Container.TEAM_COLR_MAPPING_FIELD: docker_container.team.color_code
+                Container.TEAM_NAME_MAPPING_FIELD: docker_container.team.name,
+                Container.TEAM_COLR_MAPPING_FIELD: docker_container.team.color_code
             }
             mapping_container.add_property((Container.TEAM_SUPPORT_MAPPING_PROPERTIES, team_properties))
 
@@ -849,11 +902,13 @@ class MappingGear(InjectorGearSkeleton):
                 envvar_name = envvar.split('=')[0]
                 if 'ARIANE' not in envvar_name:
                     envvar_value = None
-                    if 'PASSWORD' in envvar_name or 'password' in envvar_name or 'PWD' in envvar_name or 'pwd' in envvar_name:
+                    if 'PASSWORD' in envvar_name or 'password' in envvar_name or \
+                            'PWD' in envvar_name or 'pwd' in envvar_name:
                         envvar_value = '*****'
                     else:
                         envvar_value = envvar.split('=')[1]
                     env[envvar_name] = envvar_value
+
             if env.keys().__len__() > 0:
                 mapping_container.add_property((
                     DockerContainer.docker_props_config_env,
@@ -913,7 +968,7 @@ class MappingGear(InjectorGearSkeleton):
         mapping_container = Container(
             name=docker_container.name,
             gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                     docker_container.name + ' /bin/bash]',
+            docker_container.name + ' /bin/bash]',
             primary_admin_gate_name='NamespaceAccess@'+docker_container.name,
             parent_container_id=MappingGear.docker_host_mco.id,
             company=company,
@@ -942,7 +997,7 @@ class MappingGear(InjectorGearSkeleton):
                 if docker_container.mid is None:
                     docker_container.mcontainer = ContainerService.find_container(
                         primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                                               docker_container.name + ' /bin/bash]'
+                        docker_container.name + ' /bin/bash]'
                     )
                     if docker_container.mcontainer is not None:
                         docker_container.mid = docker_container.mcontainer.id
@@ -962,8 +1017,8 @@ class MappingGear(InjectorGearSkeleton):
                 if docker_container.mcontainer is None:
                     if docker_container.mid is None:
                         docker_container.mcontainer = ContainerService.find_container(
-                            primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                                                   docker_container.name + ' /bin/bash]'
+                            primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri +
+                            '/$[docker exec -i -t ' + docker_container.name + ' /bin/bash]'
                         )
                         if docker_container.mcontainer is not None:
                             docker_container.mid = docker_container.mcontainer.id
@@ -1056,15 +1111,14 @@ class MappingGear(InjectorGearSkeleton):
             LOGGER.warning('Synchronization requested but docker_mapping_gear@' +
                            str(DockerHostGear.hostname) + ' is not running.')
 
+
 class DockerHostGear(InjectorGearSkeleton):
-    #static reference on commons var
+    # static reference on commons var
     config = None
     hostname = None
 
     docker_host_osi = None
     docker_host_lra = None
-
-    initialized = False
 
     def __init__(self, config, cli):
         LOGGER.debug("DockerHostGear.__init__")
@@ -1091,32 +1145,31 @@ class DockerHostGear(InjectorGearSkeleton):
 
     def synchronize_with_ariane_dbs(self):
         print_wait = True
+        LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs - start")
         while not self.to_be_sync:
             if print_wait:
-                LOGGER.debug("DockerHostGear.init_with_ariane_dbs - Waiting ariane sync order from ProcOS")
+                LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs - Waiting ariane sync order from ProcOS")
                 print_wait = False
-            time.sleep(5)
-        LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs - start")
+            time.sleep(1)
+        self.to_be_sync = False
         self.directory_gear.synchronize_with_ariane_directories(self.component)
         self.mapping_gear.synchronize_with_ariane_mapping(self.component)
-        self.to_be_sync = False
 
     def init_with_ariane_dbs(self):
+        LOGGER.debug("DockerHostGear.init_with_ariane_dbs - start")
         print_wait = True
         while not self.to_be_sync:
             if print_wait:
                 LOGGER.info("DockerHostGear.init_with_ariane_dbs - Waiting ariane sync order from ProcOS")
                 print_wait = False
-            time.sleep(5)
-        LOGGER.debug("DockerHostGear.init_with_ariane_dbs - start")
+            time.sleep(1)
+        self.to_be_sync = False
         self.directory_gear.init_ariane_directories(self.component).get()
         self.mapping_gear.init_ariane_mapping(self.component).get()
-        self.component.sniff(synchronize_with_ariane_dbs=False).get()
         LOGGER.debug("DockerHostGear.init_with_ariane_dbs - Synchonize with Ariane DBs...")
         self.directory_gear.synchronize_with_ariane_directories(self.component).get()
         self.mapping_gear.synchronize_with_ariane_mapping(self.component).get()
-        DockerHostGear.initialized = True
-        self.to_be_sync = False
+        self.component.set_docker_gear_ready().get()
         LOGGER.debug("DockerHostGear.init_with_ariane_dbs - done")
 
     def on_msg(self, msg):
@@ -1166,7 +1219,3 @@ class DockerHostGear(InjectorGearSkeleton):
             self.running = False
             self.cache(running=self.running)
             self.component.stop().get()
-
-    @staticmethod
-    def is_initialized():
-        return DockerHostGear.initialized

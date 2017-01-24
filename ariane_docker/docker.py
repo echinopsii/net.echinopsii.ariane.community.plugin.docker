@@ -30,12 +30,14 @@ __author__ = 'mffrench'
 
 LOGGER = logging.getLogger(__name__)
 
+
 class DockerImage(object):
     pass
 
+
 class DockerNetwork(object):
     def __init__(self, bridge_name=None, subnet_id=None, subnet=None, nic_id=None, nic=None,
-                 nid=None, driver=None, IPAM=None, name=None, options=None, scope=None, containers_network=None):
+                 nid=None, driver=None, ipam=None, name=None, options=None, scope=None, containers_network=None):
         self.subnet_id = subnet_id
         self.subnet = subnet
         self.nic_id = nic_id
@@ -43,7 +45,7 @@ class DockerNetwork(object):
 
         self.nid = nid
         self.driver = driver
-        self.IPAM = IPAM
+        self.IPAM = ipam
         self.name = name
         self.bridge_name = bridge_name
         self.options = options
@@ -54,7 +56,7 @@ class DockerNetwork(object):
         return self.nid == other.nid
 
     def to_json(self):
-        #LOGGER.debug("DockerNetwork.to_json")
+        # LOGGER.debug("DockerNetwork.to_json")
         json_obj = {
             'nid': self.nid,
             'driver': self.driver,
@@ -69,11 +71,11 @@ class DockerNetwork(object):
 
     @staticmethod
     def from_json(json_obj):
-        #LOGGER.debug("DockerNetwork.from_json")
+        # LOGGER.debug("DockerNetwork.from_json")
         return DockerNetwork(
             nid=json_obj['nid'] if json_obj['nid'] else None,
             driver=json_obj['driver'] if json_obj['driver'] else None,
-            IPAM=json_obj['IPAM'] if json_obj['IPAM'] else None,
+            ipam=json_obj['IPAM'] if json_obj['IPAM'] else None,
             name=json_obj['name'] if json_obj['name'] else None,
             bridge_name=json_obj['bridge_name'] if json_obj['bridge_name'] else None,
             options=json_obj['options'] if json_obj['options'] else None,
@@ -81,27 +83,34 @@ class DockerNetwork(object):
             containers_network=json_obj['containers_network'] if json_obj['containers_network'] else None
         )
 
+
 class DockerContainerProcess(object):
     def __init__(self, pid=None, mdpid=None, mdp=None, mospid=None, mosp=None, mcid=None, mc=None,
                  map_sockets=None, last_map_sockets=None):
         self.pid = pid
 
-        self.mdpid = mdpid #mapping docker process node id
+        self.mdpid = mdpid    # mapping docker process node id
         self.mdp = mdp
-        self.mospid = mospid #mapping os process node id
+        self.mospid = mospid  # mapping os process node id
         self.mosp = mosp
-        self.mcid = mcid #mapping container id (parent)
+        self.mcid = mcid      # mapping container id (parent)
         self.mc = mc
 
         self.map_sockets = map_sockets if map_sockets is not None else []
         self.last_map_sockets = last_map_sockets if last_map_sockets is not None else []
         self.new_map_sockets = []
 
+    def __str__(self):
+        return "{pid: " + str(self.pid) + " ,mdpid: " + str(self.mdpid) + \
+               ", mospid: " + str(self.mospid) + ", mcid: " + str(self.mcid) + "}"
+
+    __repr__ = __str__
+
     def __eq__(self, other):
         return self.pid == other.pid
 
     def to_json(self):
-        #LOGGER.debug("DockerContainerProcess.to_json")
+        # LOGGER.debug("DockerContainerProcess.to_json")
         map_socket_2_json = []
         for map_socket in self.map_sockets:
             map_socket_2_json.append(map_socket.to_json())
@@ -120,7 +129,7 @@ class DockerContainerProcess(object):
 
     @staticmethod
     def from_json(json_obj):
-        #LOGGER.debug("DockerContainerProcess.from_json")
+        # LOGGER.debug("DockerContainerProcess.from_json")
         map_sockets_json = json_obj['map_sockets'] if json_obj['map_sockets'] else []
         map_sockets = []
         for map_socket_json in map_sockets_json:
@@ -137,6 +146,7 @@ class DockerContainerProcess(object):
             map_sockets=map_sockets,
             last_map_sockets=last_map_sockets
         )
+
 
 class DockerContainer(object):
 
@@ -203,23 +213,23 @@ class DockerContainer(object):
         ret = None
         if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
             env_vars = self.details['Config']['Env']
-            for vars in env_vars:
-                if vars.startswith(DockerContainer.ariane_ost_name):
+            for vars_ in env_vars:
+                if vars_.startswith(DockerContainer.ariane_ost_name):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_ost_name] = vars.split('=')[1]
-                if vars.startswith(DockerContainer.ariane_ost_arc):
+                    ret[DockerContainer.ariane_ost_name] = vars_.split('=')[1]
+                if vars_.startswith(DockerContainer.ariane_ost_arc):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_ost_arc] = vars.split('=')[1]
-                if vars.startswith(DockerContainer.ariane_ost_scmp_name):
+                    ret[DockerContainer.ariane_ost_arc] = vars_.split('=')[1]
+                if vars_.startswith(DockerContainer.ariane_ost_scmp_name):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_ost_scmp_name] = vars.split('=')[1]
-                if vars.startswith(DockerContainer.ariane_ost_scmp_desc):
+                    ret[DockerContainer.ariane_ost_scmp_name] = vars_.split('=')[1]
+                if vars_.startswith(DockerContainer.ariane_ost_scmp_desc):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_ost_scmp_desc] = vars.split('=')[1]
+                    ret[DockerContainer.ariane_ost_scmp_desc] = vars_.split('=')[1]
         return ret
 
     def extract_environment_from_env_vars(self):
@@ -227,19 +237,19 @@ class DockerContainer(object):
         ret = None
         if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
             env_vars = self.details['Config']['Env']
-            for vars in env_vars:
-                if vars.startswith(DockerContainer.ariane_environment_name):
+            for vars_ in env_vars:
+                if vars_.startswith(DockerContainer.ariane_environment_name):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_environment_name] = vars.split('=')[1]
-                if vars.startswith(DockerContainer.ariane_environment_cc):
+                    ret[DockerContainer.ariane_environment_name] = vars_.split('=')[1]
+                if vars_.startswith(DockerContainer.ariane_environment_cc):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_environment_cc] = vars.split('=')[1]
-                if vars.startswith(DockerContainer.ariane_environment_desc):
+                    ret[DockerContainer.ariane_environment_cc] = vars_.split('=')[1]
+                if vars_.startswith(DockerContainer.ariane_environment_desc):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_environment_desc] = vars.split('=')[1]
+                    ret[DockerContainer.ariane_environment_desc] = vars_.split('=')[1]
         return ret
 
     def extract_team_from_env_vars(self):
@@ -247,23 +257,23 @@ class DockerContainer(object):
         ret = None
         if self.details is not None and self.details['Config'] and self.details['Config']['Env']:
             env_vars = self.details['Config']['Env']
-            for vars in env_vars:
-                if vars.startswith(DockerContainer.ariane_team_name):
+            for vars_ in env_vars:
+                if vars_.startswith(DockerContainer.ariane_team_name):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_team_name] = vars.split('=')[1]
-                if vars.startswith(DockerContainer.ariane_team_cc):
+                    ret[DockerContainer.ariane_team_name] = vars_.split('=')[1]
+                if vars_.startswith(DockerContainer.ariane_team_cc):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_team_cc] = vars.split('=')[1]
-                if vars.startswith(DockerContainer.ariane_team_desc):
+                    ret[DockerContainer.ariane_team_cc] = vars_.split('=')[1]
+                if vars_.startswith(DockerContainer.ariane_team_desc):
                     if ret is None:
                         ret = {}
-                    ret[DockerContainer.ariane_team_desc] = vars.split('=')[1]
+                    ret[DockerContainer.ariane_team_desc] = vars_.split('=')[1]
         return ret
 
     def to_json(self):
-        #LOGGER.debug("DockerContainer.to_json")
+        # LOGGER.debug("DockerContainer.to_json")
         processs_2_json = []
         for process in self.processs:
             processs_2_json.append(process.to_json())
@@ -297,7 +307,7 @@ class DockerContainer(object):
 
     @staticmethod
     def from_json(json_obj):
-        #LOGGER.debug("DockerContainer.from_json")
+        # LOGGER.debug("DockerContainer.from_json")
         processs_json = json_obj['processs'] if json_obj['processs'] else []
         processs = []
         for process_json in processs_json:
@@ -341,10 +351,10 @@ class DockerContainer(object):
         else:
             if _platform == "linux" or _platform == "linux2":
                 with Namespace(self.nsented_pid, 'net'):
-                    bytes = subprocess.check_output(['ethtool', iptable_nic['name']])
+                    bytes_ = subprocess.check_output(['ethtool', iptable_nic['name']])
                 tmpfilename = tempfile.gettempdir() + os.sep + self.did + '.tmp'
                 with open(tmpfilename, 'wb') as tmpfile:
-                    tmpfile.write(bytes)
+                    tmpfile.write(bytes_)
                     tmpfile.close()
                 with open(tmpfilename, 'r') as tmpfile:
                     text = tmpfile.readlines()
@@ -366,10 +376,10 @@ class DockerContainer(object):
             text = None
             if _platform == "linux" or _platform == "linux2":
                 with Namespace(self.nsented_pid, 'net'):
-                    bytes = subprocess.check_output(['ip', 'addr', 'show'])
+                    bytes_ = subprocess.check_output(['ip', 'addr', 'show'])
                 tmpfilename = tempfile.gettempdir() + os.sep + self.did + '.tmp'
                 with open(tmpfilename, 'wb') as tmpfile:
-                    tmpfile.write(bytes)
+                    tmpfile.write(bytes_)
                     tmpfile.close()
                 with open(tmpfilename, 'r') as tmpfile:
                     text = tmpfile.readlines()
@@ -421,10 +431,10 @@ class DockerContainer(object):
         else:
             if _platform == "linux" or _platform == "linux2":
                 with Namespace(self.nsented_pid, 'net'):
-                    bytes = subprocess.check_output(['netstat', '-a', '-p', '-n'])
+                    bytes_ = subprocess.check_output(['netstat', '-a', '-p', '-n'])
                 tmpfilename = tempfile.gettempdir() + os.sep + self.did + '.tmp'
                 with open(tmpfilename, 'wb') as tmpfile:
-                    tmpfile.write(bytes)
+                    tmpfile.write(bytes_)
                     tmpfile.close()
                 with open(tmpfilename, 'r') as tmpfile:
                     text = tmpfile.readlines()
@@ -473,15 +483,15 @@ class DockerContainer(object):
                             family = 'AF_INET6'
 
                         if protocol == 'tcp' or protocol == 'tcp6':
-                            type = 'SOCK_STREAM'
+                            type_ = 'SOCK_STREAM'
                         else:
-                            type = 'SOCK_DGRAM'
+                            type_ = 'SOCK_DGRAM'
 
                         ret.append({
                             'pid': pid,
                             'socket': MapSocket(source_ip=source_ip, source_port=source_port,
                                                 destination_ip=target_ip, destination_port=target_port,
-                                                status=state, family=family, rtype=type)
+                                                status=state, family=family, rtype=type_)
                         })
             else:
                 LOGGER.warning("Containers namespace sniff enabled on Linux only.")
@@ -518,7 +528,7 @@ class DockerContainer(object):
                         destination_is_local = True
                         break
             else:
-                #TODO: check is ipv6 in subnet ?
+                # TODO: check is ipv6 in subnet ?
                 for nic in self.nics:
                     if nic.ipv6_address is not None and mapping_socket.destination_ip == nic.ipv6_address:
                         destination_is_local = True
@@ -537,6 +547,8 @@ class DockerContainer(object):
         self.last_processs = copy.deepcopy(self.processs)
         self.last_nics = copy.deepcopy(self.nics)
         self.sniff(cli)
+        LOGGER.debug("DockerContainer.update - last_processs: " + str(self.last_processs))
+        LOGGER.debug("DockerContainer.update - processs: " + str(self.processs))
 
     def sniff(self, cli):
         LOGGER.debug("DockerContainer.sniff")
@@ -638,6 +650,8 @@ class DockerHost(object):
     def __str__(self):
         return 'docker@' + self.hostname
 
+    __repr__ = __str__
+
     def need_directories_refresh(self):
         pass
 
@@ -672,7 +686,7 @@ class DockerHost(object):
 
     @staticmethod
     def from_json(json_obj):
-        #LOGGER.debug("DockerHost.from_json")
+        # LOGGER.debug("DockerHost.from_json")
         containers_json = json_obj['containers'] if json_obj['containers'] else []
         containers = []
         for container_json in containers_json:
@@ -729,7 +743,7 @@ class DockerHost(object):
                 nid=network['Id'],
                 driver=network['Driver'],
                 name=network['Name'],
-                IPAM=network['IPAM'],
+                ipam=network['IPAM'],
                 options=network['Options'],
                 scope=network['Scope'],
                 containers_network=network['Containers']

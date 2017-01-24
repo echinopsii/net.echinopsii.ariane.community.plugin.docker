@@ -59,9 +59,12 @@ class DockerComponent(InjectorComponentSkeleton):
             self.docker_host = DockerHost.from_json(cached_blob)
         else:
             self.docker_host = DockerHost()
-            self.docker_host.sniff(self.cli)
+        self.docker_gear_ready = False
         self.version = 0
         self.domino_receptor = None
+
+    def set_docker_gear_ready(self):
+        self.docker_gear_ready = True
 
     def on_start(self):
         LOGGER.debug("DockerComponent.on_start")
@@ -87,17 +90,22 @@ class DockerComponent(InjectorComponentSkeleton):
 
     def sniff_on_procos_event(self, msg):
         LOGGER.debug("DockerComponent.sniff_on_procos_event - Message received : " + msg)
-        if self.docker_gear_actor_ref.proxy().is_initialized().get():
+        if self.docker_gear_ready:
+            LOGGER.debug("DockerComponent.sniff_on_procos_event - docker gear actor is initialized ...")
             self.sniff()
         else:
-            LOGGER.info("DockerComponent.sniff_on_procos_event - ignore component sniff order from ProcOS "
-                        "and wait docker ariane initialization...")
+            LOGGER.debug("DockerComponent.sniff_on_procos_event - docker gear actor is not initialized ...")
+            self.sniff(synchronize_with_ariane_dbs=False)
 
     def sniff(self, synchronize_with_ariane_dbs=True):
         try:
             start_time = timeit.default_timer()
-            self.cache(refreshing=True, next_action=InjectorCachedComponent.action_update, data_blob=self.data_blob())
-            self.docker_host.update(self.cli)
+            if self.docker_gear_ready:
+                self.cache(refreshing=True,
+                           next_action=InjectorCachedComponent.action_update, data_blob=self.data_blob())
+                self.docker_host.update(self.cli)
+            else:
+                self.docker_host.sniff(self.cli)
             self.cache(refreshing=False, next_action=InjectorCachedComponent.action_update, data_blob=self.data_blob())
             self.version += 1
             sniff_time = timeit.default_timer()-start_time

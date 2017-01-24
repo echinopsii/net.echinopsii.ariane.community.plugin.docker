@@ -488,6 +488,7 @@ class MappingGear(InjectorGearSkeleton):
 
                 target_endpoint = None
                 target_url = None
+                is_dhost_remote_destination = False
                 is_in_container_destination = False
                 unable_to_define_target_ep = False
                 remote_target_ep_commit_counter = 0
@@ -526,7 +527,8 @@ class MappingGear(InjectorGearSkeleton):
 
                 if target_url is not None:
                     if map_socket.destination_endpoint_id is None:
-                        if docker_container.is_local_destination(map_socket):
+                        is_dhost_remote_destination = docker_container.is_local_destination(map_socket)
+                        if is_dhost_remote_destination:
                             is_in_container_destination = docker_container.is_in_container_destination(map_socket)
                             if not is_in_container_destination:
                                 selector = "endpointURL =~ '" + target_url + ".*'"
@@ -623,7 +625,7 @@ class MappingGear(InjectorGearSkeleton):
                                 map_socket.transport_id = transport.id
                                 map_socket.link_id = link.id
 
-                    if not is_in_container_destination and not unable_to_define_target_ep:
+                    if is_dhost_remote_destination and not unable_to_define_target_ep:
                         remote_target_ep_commit_counter += 1
                         if remote_target_ep_commit_counter == 5:
                             SessionService.commit()

@@ -488,10 +488,6 @@ class MappingGear(InjectorGearSkeleton):
 
                 target_endpoint = None
                 target_url = None
-                is_dhost_remote_destination = False
-                is_in_container_destination = False
-                unable_to_define_target_ep = False
-                remote_target_ep_commit_counter = 0
 
                 if map_socket.source_endpoint_id is None:
                     parent_node = None
@@ -527,6 +523,8 @@ class MappingGear(InjectorGearSkeleton):
 
                 if target_url is not None:
                     if map_socket.destination_endpoint_id is None:
+                        LOGGER.debug("MappingGear.synchronize_new_map_socket - source_url: " + source_url +
+                                     "; target_url: " + target_url)
                         is_dhost_remote_destination = docker_container.is_local_destination(map_socket)
                         if is_dhost_remote_destination:
                             is_in_container_destination = docker_container.is_in_container_destination(map_socket)
@@ -585,8 +583,6 @@ class MappingGear(InjectorGearSkeleton):
                                             eid=mirror_map_socket.source_endpoint_id
                                         )
                         else:
-                            LOGGER.debug("MappingGear.synchronize_new_map_socket - source_url: " + source_url +
-                                         "; target_url: " + target_url)
                             selector = "endpointURL =~ '" + target_url + ".*'"
                             endpoints = EndpointService.find_endpoint(selector=selector)
                             if endpoints is not None:
@@ -606,7 +602,7 @@ class MappingGear(InjectorGearSkeleton):
                                        source_url)
                     else:
                         if target_endpoint is None:
-                            unable_to_define_target_ep = True
+                            # unable_to_define_target_ep = True
                             LOGGER.warning("MappingGear.synchronize_new_map_socket - Unable to define target endpoint: "
                                            + target_url)
                         else:
@@ -624,12 +620,6 @@ class MappingGear(InjectorGearSkeleton):
                                 link.save()
                                 map_socket.transport_id = transport.id
                                 map_socket.link_id = link.id
-
-                    if is_dhost_remote_destination and not unable_to_define_target_ep:
-                        remote_target_ep_commit_counter += 1
-                        if remote_target_ep_commit_counter == 5:
-                            SessionService.commit()
-                            remote_target_ep_commit_counter = 0
         else:
             LOGGER.warning("MappingGear.synchronize_new_map_socket - no source ip / port - " + str(map_socket))
 

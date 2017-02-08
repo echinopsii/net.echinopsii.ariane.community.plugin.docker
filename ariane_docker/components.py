@@ -64,6 +64,7 @@ class DockerComponent(InjectorComponentSkeleton):
         self.domino_receptor = None
 
     def set_docker_gear_ready(self):
+        LOGGER.info("DockerComponent.set_docker_gear_ready")
         self.docker_gear_ready = True
 
     def on_start(self):
@@ -90,6 +91,7 @@ class DockerComponent(InjectorComponentSkeleton):
 
     def sniff_on_procos_event(self, msg):
         LOGGER.debug("DockerComponent.sniff_on_procos_event - Message received : " + msg)
+        LOGGER.debug("DockerComponent.sniff_on_procos_event - docker_gear_ready : " + str(self.docker_gear_ready))
         if self.docker_gear_ready:
             LOGGER.debug("DockerComponent.sniff_on_procos_event - docker gear actor is initialized ...")
             self.sniff()
@@ -110,6 +112,9 @@ class DockerComponent(InjectorComponentSkeleton):
             self.version += 1
             sniff_time = timeit.default_timer()-start_time
             LOGGER.info("DockerComponent.sniff - time : " + str(sniff_time))
+            LOGGER.debug("DockerComponent.sniff - "
+                         "(synchronize_with_ariane_dbs and self.docker_gear_actor_ref is not None) = " +
+                         str(synchronize_with_ariane_dbs and self.docker_gear_actor_ref is not None))
             if synchronize_with_ariane_dbs and self.docker_gear_actor_ref is not None:
                 self.docker_gear_actor_ref.proxy().synchronize_with_ariane_dbs()
         except Exception as e:

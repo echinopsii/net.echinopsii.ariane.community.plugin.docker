@@ -1133,9 +1133,11 @@ class DockerHostGear(InjectorGearSkeleton):
         self.directory_gear = DirectoryGear.start().proxy()
         self.mapping_gear = MappingGear.start().proxy()
         self.domino_receptor = None
+        self.call_from_component = True  # set to True for init
         self.to_be_sync = False
 
     def synchronize_with_ariane_dbs(self):
+        self.call_from_component = True
         print_wait = True
         LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs - start")
         while not self.to_be_sync:
@@ -1144,6 +1146,7 @@ class DockerHostGear(InjectorGearSkeleton):
                 print_wait = False
             time.sleep(1)
         self.to_be_sync = False
+        self.call_from_component = False
         self.directory_gear.synchronize_with_ariane_directories(self.component)
         self.mapping_gear.synchronize_with_ariane_mapping(self.component)
 
@@ -1156,6 +1159,7 @@ class DockerHostGear(InjectorGearSkeleton):
                 print_wait = False
             time.sleep(1)
         self.to_be_sync = False
+        self.call_from_component = False
         self.directory_gear.init_ariane_directories(self.component).get()
         self.mapping_gear.init_ariane_mapping(self.component).get()
         LOGGER.debug("DockerHostGear.init_with_ariane_dbs - Synchonize with Ariane DBs...")
@@ -1166,7 +1170,12 @@ class DockerHostGear(InjectorGearSkeleton):
 
     def on_msg(self, msg):
         LOGGER.debug("DockerHostGear.on_msg - message received : " + str(msg))
-        self.to_be_sync = True
+        if self.call_from_component:
+            self.to_be_sync = True
+        else:
+            # If a message is lost this could happen and result on bad sync between ProcOS and Docker plugin
+            # => wait next round for good sync
+            LOGGER.warn("DockerHostGear.on_msg - message receiver before component call to sync... ignore")
 
     def on_start(self):
         LOGGER.debug("DockerHostGear.on_start")

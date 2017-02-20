@@ -531,7 +531,10 @@ class MappingGear(InjectorGearSkeleton):
                             is_in_container_destination = docker_container.is_in_container_destination(map_socket)
                             if not is_in_container_destination:
                                 selector = "endpointURL =~ '" + target_url + ".*'"
-                                endpoints = EndpointService.find_endpoint(selector=selector)
+                                endpoints = EndpointService.find_endpoint(
+                                    selector=selector,
+                                    cid=MappingGear.docker_host_mco.id
+                                )
                                 if endpoints is not None:
                                     if endpoints.__len__() == 1:
                                         target_endpoint = endpoints[0]
@@ -545,9 +548,14 @@ class MappingGear(InjectorGearSkeleton):
                             else:
                                 target_local_process = None
                                 mirror_map_socket = None
+                                LOGGER.debug("MappingGear.synchronize_new_map_socket - check mirror socket for " +
+                                             target_url)
                                 for dc_process in docker_container.processs:
                                     for m_map_socket in dc_process.map_sockets:
-                                        if (m_map_socket.source_ip + ":" + m_map_socket.source_port) == target_url:
+                                        LOGGER.debug("MappingGear.synchronize_new_map_socket - "
+                                                     "browsing registered mirror sockets : " +
+                                                     m_map_socket.source_ip + ":" + m_map_socket.source_port)
+                                        if target_url.endswith(m_map_socket.source_ip + ":" + m_map_socket.source_port):
                                             target_local_process = dc_process
                                             mirror_map_socket = m_map_socket
                                             break
@@ -583,6 +591,9 @@ class MappingGear(InjectorGearSkeleton):
                                         target_endpoint = EndpointService.find_endpoint(
                                             eid=mirror_map_socket.source_endpoint_id
                                         )
+                                else:
+                                    LOGGER.warning("MappingGear.synchronize_new_map_socket - "
+                                                   "no mirror socket found for " + target_url)
                         else:
                             selector = "endpointURL =~ '" + target_url + ".*'"
                             endpoints = EndpointService.find_endpoint(selector=selector)
@@ -592,6 +603,9 @@ class MappingGear(InjectorGearSkeleton):
                                 else:
                                     LOGGER.warning("MappingGear.synchronize_new_map_socket - Several endpoints found "
                                                    "for selector " + selector + ". There should be one endpoint only !")
+                            else:
+                                LOGGER.warning("MappingGear.synchronize_new_map_socket - No endpoint for selector "
+                                               + selector + "  ?!")
                             if target_endpoint is None:
                                 target_fqdn = None
                                 try:
@@ -1207,7 +1221,7 @@ class DockerHostGear(InjectorGearSkeleton):
         self.directory_gear = DirectoryGear.start().proxy()
         self.mapping_gear = MappingGear.start().proxy()
         self.domino_receptor = None
-        self.call_from_component = True  # set to True for init
+        self.call_from_component = False
         self.to_be_sync = False
         self.sync_in_progress = False
 

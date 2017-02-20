@@ -28,8 +28,9 @@ from ariane_clip3.injector import InjectorGearSkeleton
 import time
 import sys
 from ariane_clip3.mapping import ContainerService, Container, NodeService, Node, EndpointService, Endpoint, Link, \
-    Transport, SessionService
-from ariane_procos.system import NetworkInterfaceCard
+    Transport
+from ariane_procos.system import NetworkInterfaceCard, MapSocket
+from ariane_procos.gears import MappingGear as ProcOSMappingGear
 from ariane_docker.components import DockerComponent
 from ariane_docker.docker import DockerContainer
 
@@ -525,8 +526,8 @@ class MappingGear(InjectorGearSkeleton):
                     if map_socket.destination_endpoint_id is None:
                         LOGGER.debug("MappingGear.synchronize_new_map_socket - source_url: " + source_url +
                                      "; target_url: " + target_url)
-                        is_dhost_remote_destination = docker_container.is_local_destination(map_socket)
-                        if is_dhost_remote_destination:
+                        is_dhost_local_destination = docker_container.is_local_destination(map_socket)
+                        if is_dhost_local_destination:
                             is_in_container_destination = docker_container.is_in_container_destination(map_socket)
                             if not is_in_container_destination:
                                 selector = "endpointURL =~ '" + target_url + ".*'"
@@ -591,9 +592,116 @@ class MappingGear(InjectorGearSkeleton):
                                 else:
                                     LOGGER.warning("MappingGear.synchronize_new_map_socket - Several endpoints found "
                                                    "for selector " + selector + ". There should be one endpoint only !")
-                            else:
-                                LOGGER.warning("MappingGear.synchronize_new_map_socket - No endpoint for selector " +
-                                               selector + "  ?!")
+                            if target_endpoint is None:
+                                target_fqdn = None
+                                try:
+                                    if map_socket.family == "AF_INET":
+                                        target_fqdn = socket.gethostbyaddr(map_socket.destination_ip)[0]
+                                    elif map_socket.family == "AF_INET6":
+                                        target_fqdn = socket.gethostbyaddr(MapSocket.ipv6_2_ipv4(
+                                            map_socket.destination_ip))[0]
+
+                                except socket.herror as e:
+                                    LOGGER.debug(str(map_socket))
+                                    LOGGER.debug(e.__str__())
+                                    LOGGER.debug(traceback.format_exc())
+                                except OSError as e:
+                                    LOGGER.debug(str(map_socket))
+                                    LOGGER.debug(e.__str__())
+                                    LOGGER.debug(traceback.format_exc())
+
+                                target_container = None
+
+                                if target_fqdn != "localhost" and target_fqdn is not None:
+                                    target_os_instance = None
+                                    if target_fqdn.split(".").__len__() > 1:
+                                        target_os_instance = OSInstanceService.find_os_instance(
+                                            osi_name=target_fqdn.split(".")[0]
+                                        )
+
+                                    if target_os_instance is None:
+                                        target_os_instance = OSInstanceService.find_os_instance(
+                                            osi_name=target_fqdn
+                                        )
+
+                                    if target_os_instance is None:
+                                        target_ipa = IPAddressService.find_ip_address(ipa_fqdn=target_fqdn)
+                                        if target_ipa is not None:
+                                            target_os_instance = OSInstanceService.find_os_instance(
+                                                osi_id=target_ipa.ipa_os_instance_id
+                                            )
+
+                                    if target_os_instance is not None:
+                                        if target_container is None:
+                                            target_container = ContainerService.find_container(
+                                                primary_admin_gate_url=target_os_instance.admin_gate_uri
+                                            )
+                                        if target_container is None:
+                                            target_os_instance_type = OSTypeService.find_ostype(
+                                                ost_id=target_os_instance.ost_id
+                                            )
+                                            product = target_os_instance_type.name + " - " + \
+                                                target_os_instance_type.architecture \
+                                                if target_os_instance_type is not None else \
+                                                "Unknown OS Type"
+
+                                            target_os_instance_type_cmp = CompanyService.find_company(
+                                                cmp_id=target_os_instance_type.company_id
+                                            ) if target_os_instance_type is not None else None
+                                            company = target_os_instance_type_cmp.name \
+                                                if target_os_instance_type_cmp is not None else \
+                                                "Unknown OS Type Company"
+
+                                            name = target_fqdn.split(".")[0] if target_fqdn is not None else \
+                                                map_socket.destination_ip
+
+                                            target_container = Container(
+                                                name=name,
+                                                gate_uri=target_os_instance.admin_gate_uri,
+                                                primary_admin_gate_name=target_fqdn + " Primary Admin Gate",
+                                                company=company,
+                                                product=product,
+                                                c_type="Operating System"
+                                            )
+                                            target_container.save()
+
+                                        if Container.OWNER_MAPPING_PROPERTY not in target_container.properties:
+                                            ProcOSMappingGear.sync_remote_container_network(target_os_instance,
+                                                                                            target_container)
+                                            ProcOSMappingGear.sync_remote_container_team(target_os_instance,
+                                                                                         target_container)
+                                if target_container is None:
+                                    target_container = ContainerService.find_container(
+                                        primary_admin_gate_url="not_my_concern://"+map_socket.destination_ip
+                                    )
+                                    if target_container is None:
+                                        target_container = Container(
+                                            name=target_fqdn if target_fqdn is not None else map_socket.destination_ip,
+                                            gate_uri="not_my_concern://"+map_socket.destination_ip,
+                                            primary_admin_gate_name="External OS Primary Admin Gate"
+                                        )
+                                        target_container.save()
+
+                                if target_endpoint is None and \
+                                        Container.OWNER_MAPPING_PROPERTY not in target_container.properties:
+                                    addr = target_fqdn if target_fqdn is not None else map_socket.destination_ip
+                                    node_name = addr + ':' + str(map_socket.destination_port)
+                                    LOGGER.debug("create node " + node_name + " through container " +
+                                                 target_container.id)
+                                    target_node = Node(
+                                        name=node_name,
+                                        container_id=target_container.id,
+                                        ignore_sync=True
+                                    )
+                                    target_node.save()
+
+                                    target_endpoint = Endpoint(
+                                        url=target_url, parent_node_id=target_node.id, ignore_sync=True
+                                    )
+                                    target_endpoint.save()
+                                if target_endpoint is None:
+                                    LOGGER.warning("MappingGear.synchronize_new_map_socket - No endpoint for selector " +
+                                                   selector + "  ?!")
                     else:
                         target_endpoint = EndpointService.find_endpoint(map_socket.destination_endpoint_id)
 
@@ -1023,82 +1131,46 @@ class MappingGear(InjectorGearSkeleton):
                                    docker_container.name + ") !?")
 
     def init_ariane_mapping(self, component):
-        SessionService.open_session("ArianeDocker_" + socket.gethostname())
+        start_time = timeit.default_timer()
         MappingGear.docker_host_mco = ContainerService.find_container(
             primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri
         )
-        if MappingGear.docker_host_mco is None:
-            LOGGER.error('Docker host ' + str(DockerHostGear.hostname) +
-                         ' Ariane container not found in Ariane mapping DB')
-            LOGGER.error('Did you run Ariane ProcOS on this host first ? Stopping ...')
-            SessionService.close_session()
-            sys.exit(-1)
-        else:
-            try:
-                LOGGER.debug("MappingGear.init_ariane_mapping - init start")
-                docker_host = component.docker_host.get()
-                self.synchronize_container(docker_host)
-                SessionService.commit()
-                LOGGER.debug("MappingGear.init_ariane_mapping - init done")
-                SessionService.close_session()
-            except Exception as e:
-                LOGGER.error("MappingGear.init_ariane_mapping - " + e.__str__())
-                LOGGER.debug("MappingGear.init_ariane_mapping - " + traceback.format_exc())
-                try:
-                    LOGGER.error("MappingGear.init_ariane_mapping - mapping rollback to previous state")
-                    SessionService.rollback()
-                except Exception as e:
-                    LOGGER.error("MappingGear.init_ariane_mapping - exception on mapping rollback : " + e.__str__())
-                    LOGGER.debug("MappingGear.init_ariane_mapping - exception on mapping rollback : " +
-                                 traceback.format_exc())
-                try:
-                    LOGGER.error("MappingGear.init_ariane_mapping - mapping session close")
-                    SessionService.close_session()
-                except Exception as e:
-                    LOGGER.error("MappingGear.init_ariane_mapping - exception on mapping session closing : " +
-                                 e.__str__())
-                    LOGGER.debug("MappingGear.init_ariane_mapping - exception on mapping session closing : " +
-                                 traceback.format_exc())
+        print_wait = True
+        LOGGER.debug("MappingGear.init_ariane_mapping - start")
+        while MappingGear.docker_host_mco is None:
+            if print_wait:
+                LOGGER.debug("MappingGear.init_ariane_mapping - Waiting Ariane ProcOS initialization")
+                print_wait = False
+            time.sleep(10)
+            MappingGear.docker_host_mco = ContainerService.find_container(
+                primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri
+            )
+
+        try:
+            LOGGER.debug("MappingGear.init_ariane_mapping - init start")
+            docker_host = component.docker_host.get()
+            self.synchronize_container(docker_host)
+            LOGGER.debug("MappingGear.init_ariane_mapping - init done")
+            sync_proc_time = timeit.default_timer()-start_time
+            LOGGER.info('MappingGear.init_ariane_mapping - time : ' + str(sync_proc_time))
+        except Exception as e:
+            LOGGER.error("MappingGear.init_ariane_mapping - " + e.__str__())
+            LOGGER.debug("MappingGear.init_ariane_mapping - " + traceback.format_exc())
 
     def synchronize_with_ariane_mapping(self, component):
         if self.running:
             try:
                 start_time = timeit.default_timer()
-                SessionService.open_session("ArianeDocker_" + socket.gethostname())
                 docker_host = component.docker_host.get()
                 LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync start")
                 self.synchronize_container(docker_host)
-                SessionService.commit()
                 self.update_count += 1
                 LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - sync done")
-                SessionService.close_session()
                 sync_proc_time = timeit.default_timer()-start_time
                 LOGGER.info('MappingGear.synchronize_with_ariane_mapping - time : ' + str(sync_proc_time))
             except Exception as e:
                 LOGGER.error("MappingGear.synchronize_with_ariane_mapping - " + e.__str__())
                 LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - " + traceback.format_exc())
-                try:
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - mapping rollback to previous state")
-                    SessionService.rollback()
-                except Exception as e:
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - exception on mapping rollback : " +
-                                 e.__str__())
-                    LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - exception on mapping rollback : " +
-                                 traceback.format_exc())
-                try:
-                    SessionService.close_session()
-                except Exception as e:
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - exception on mapping session closing : "
-                                 + e.__str__())
-                    LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - exception on mapping session closing : "
-                                 + traceback.format_exc())
-                try:
-                    component.rollback().get()
-                except Exception as e:
-                    LOGGER.error("MappingGear.synchronize_with_ariane_mapping - exception on injector cache rollback : "
-                                 + e.__str__())
-                    LOGGER.debug("MappingGear.synchronize_with_ariane_mapping - exception on injector cache rollback : "
-                                 + traceback.format_exc())
         else:
             LOGGER.warning('Synchronization requested but docker_mapping_gear@' +
                            str(DockerHostGear.hostname) + ' is not running.')
@@ -1115,6 +1187,8 @@ class DockerHostGear(InjectorGearSkeleton):
     def __init__(self, config, cli):
         LOGGER.debug("DockerHostGear.__init__")
         DockerHostGear.hostname = socket.gethostname()
+        if DockerHostGear.hostname.split(".").__len__() > 1:
+            DockerHostGear.hostname = DockerHostGear.hostname.split(".")[0]
         DockerHostGear.config = config
         super(DockerHostGear, self).__init__(
             gear_id='ariane.community.plugin.docker.gears.cache.docker_host_gear@' + str(DockerHostGear.hostname),
@@ -1135,6 +1209,7 @@ class DockerHostGear(InjectorGearSkeleton):
         self.domino_receptor = None
         self.call_from_component = True  # set to True for init
         self.to_be_sync = False
+        self.sync_in_progress = False
 
     def synchronize_with_ariane_dbs(self):
         self.call_from_component = True
@@ -1147,24 +1222,19 @@ class DockerHostGear(InjectorGearSkeleton):
             time.sleep(1)
         self.to_be_sync = False
         self.call_from_component = False
-        self.directory_gear.synchronize_with_ariane_directories(self.component)
-        self.mapping_gear.synchronize_with_ariane_mapping(self.component)
+        if not self.sync_in_progress:
+            self.sync_in_progress = True
+            self.directory_gear.synchronize_with_ariane_directories(self.component).get()
+            self.mapping_gear.synchronize_with_ariane_mapping(self.component).get()
+            self.sync_in_progress = False
+        else:
+            self.component.rollback().get()
+            LOGGER.warn("DockerHostGear.synchronize_with_ariane_dbs - wait last sync to be completed !")
 
     def init_with_ariane_dbs(self):
         LOGGER.debug("DockerHostGear.init_with_ariane_dbs - start")
-        print_wait = True
-        while not self.to_be_sync:
-            if print_wait:
-                LOGGER.info("DockerHostGear.init_with_ariane_dbs - Waiting ariane sync order from ProcOS")
-                print_wait = False
-            time.sleep(1)
-        self.to_be_sync = False
-        self.call_from_component = False
         self.directory_gear.init_ariane_directories(self.component).get()
         self.mapping_gear.init_ariane_mapping(self.component).get()
-        LOGGER.debug("DockerHostGear.init_with_ariane_dbs - Synchonize with Ariane DBs...")
-        self.directory_gear.synchronize_with_ariane_directories(self.component).get()
-        self.mapping_gear.synchronize_with_ariane_mapping(self.component).get()
         self.component.set_docker_gear_ready().get()
         LOGGER.debug("DockerHostGear.init_with_ariane_dbs - done")
 
@@ -1175,7 +1245,7 @@ class DockerHostGear(InjectorGearSkeleton):
         else:
             # If a message is lost this could happen and result on bad sync between ProcOS and Docker plugin
             # => wait next round for good sync
-            LOGGER.warn("DockerHostGear.on_msg - message receiver before component call to sync... ignore")
+            LOGGER.warn("DockerHostGear.on_msg - message received before component call to sync... ignore")
 
     def on_start(self):
         LOGGER.debug("DockerHostGear.on_start")

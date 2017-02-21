@@ -760,7 +760,7 @@ class MappingGear(InjectorGearSkeleton):
         if map_socket.source_endpoint_id is not None:
             source_endpoint = EndpointService.find_endpoint(eid=map_socket.source_endpoint_id)
             if source_endpoint is not None:
-                LOGGER.warning("Remove (source) endpoint " + source_endpoint.url)
+                LOGGER.debug("Remove (source) endpoint " + source_endpoint.url)
                 source_endpoint.remove()
             else:
                 LOGGER.warning("Dead socket (source endpoint : {" + str(map_socket.source_endpoint_id) +

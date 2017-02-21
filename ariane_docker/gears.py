@@ -255,8 +255,8 @@ class DirectoryGear(InjectorGearSkeleton):
             osi_from_ariane = OSInstance(
                 name=docker_container.name + '.' + DockerHostGear.hostname,
                 description=docker_container.name + '@' + DockerHostGear.hostname,
-                admin_gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                docker_container.name + ' /bin/bash]',
+                admin_gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/{docker exec -i -t ' +
+                docker_container.name + ' /bin/bash}',
                 osi_embedding_osi_id=DockerHostGear.docker_host_osi.id,
                 osi_ost_id=docker_container.ostid,
                 osi_environment_ids=env_ids,
@@ -485,8 +485,8 @@ class MappingGear(InjectorGearSkeleton):
 
             if proto is not None:
                 source_endpoint = None
-                source_url = proto + map_socket.source_ip + ":" + str(map_socket.source_port)
-
+                source_url = proto + map_socket.source_ip + ":" + str(map_socket.source_port) + \
+                    str(map_socket.file_descriptors) + '[' + str(process.pid) + ']'
                 target_endpoint = None
                 target_url = None
 
@@ -499,6 +499,9 @@ class MappingGear(InjectorGearSkeleton):
                         parent_node = process.mdp
 
                     if parent_node is not None:
+                        LOGGER.debug("MappingGear.synchronize_new_map_socket - creating source endpoint "
+                                     + source_url + " on parent_node (" + parent_node.id + ", " +
+                                     parent_node.name + ")")
                         source_endpoint = Endpoint(
                             url=source_url,
                             parent_node=parent_node
@@ -539,9 +542,10 @@ class MappingGear(InjectorGearSkeleton):
                                     if endpoints.__len__() == 1:
                                         target_endpoint = endpoints[0]
                                     else:
+                                        LOGGER.debug(str(endpoints))
                                         LOGGER.warning("MappingGear.synchronize_new_map_socket - Several endpoints "
                                                        "found for selector " + selector +
-                                                       ". There should be one endpoint only !")
+                                                       " (local). There should be one endpoint only !")
                                 else:
                                     LOGGER.warning("MappingGear.synchronize_new_map_socket - No endpoint for selector "
                                                    + selector + "  ?!")
@@ -561,14 +565,17 @@ class MappingGear(InjectorGearSkeleton):
                                             break
                                 if target_local_process is not None and mirror_map_socket is not None:
                                     if mirror_map_socket.source_endpoint_id is None:
-                                        if target_local_process.mdp is None:
+                                        container_target_url = target_url + str(mirror_map_socket.file_descriptors) + \
+                                            "[" + target_local_process.pid + "]"
+                                        if target_local_process.mdp is None and target_local_process.mdpid is not None\
+                                                and not target_local_process.mdpid:
                                             parent_node = NodeService.find_node(nid=target_local_process.mdpid)
                                         else:
                                             parent_node = target_local_process.mdp
 
                                         if parent_node is not None:
                                             target_endpoint = Endpoint(
-                                                url=target_url,
+                                                url=container_target_url,
                                                 parent_node=parent_node
                                             )
                                             if mirror_map_socket.type is not None and mirror_map_socket.type:
@@ -586,7 +593,8 @@ class MappingGear(InjectorGearSkeleton):
                                             mirror_map_socket.source_endpoint_id = target_endpoint.id
                                         else:
                                             LOGGER.warning("MappingGear.synchronize_new_map_socket - "
-                                                           "Fail to sync parent node for target endpoint " + target_url)
+                                                           "Fail to sync parent node " + str(target_local_process.pid) +
+                                                           " for target endpoint " + target_url)
                                     else:
                                         target_endpoint = EndpointService.find_endpoint(
                                             eid=mirror_map_socket.source_endpoint_id
@@ -601,6 +609,7 @@ class MappingGear(InjectorGearSkeleton):
                                 if endpoints.__len__() == 1:
                                     target_endpoint = endpoints[0]
                                 else:
+                                    LOGGER.debug(str(endpoints))
                                     LOGGER.warning("MappingGear.synchronize_new_map_socket - Several endpoints found "
                                                    "for selector " + selector + ". There should be one endpoint only !")
                             else:
@@ -751,11 +760,12 @@ class MappingGear(InjectorGearSkeleton):
         if map_socket.source_endpoint_id is not None:
             source_endpoint = EndpointService.find_endpoint(eid=map_socket.source_endpoint_id)
             if source_endpoint is not None:
-                LOGGER.debug("Remove (source) endpoint " + source_endpoint.url)
+                LOGGER.warning("Remove (source) endpoint " + source_endpoint.url)
                 source_endpoint.remove()
             else:
-                LOGGER.warning("Dead socket (source endpoint : " + str(map_socket.source_endpoint_id) +
-                               ") doesn't exist anymore on DB!")
+                LOGGER.warning("Dead socket (source endpoint : {" + str(map_socket.source_endpoint_id) +
+                               ", " + map_socket.source_ip + ":" + map_socket.source_port +
+                               "}) doesn't exist anymore on DB!")
 
         # if map_socket.destination_endpoint_id is not None:
         #     destination_endpoint = EndpointService.find_endpoint(eid=map_socket.destination_endpoint_id)
@@ -1081,8 +1091,8 @@ class MappingGear(InjectorGearSkeleton):
 
         mapping_container = Container(
             name=docker_container.name,
-            gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-            docker_container.name + ' /bin/bash]',
+            gate_uri=DockerHostGear.docker_host_osi.admin_gate_uri + '/{docker exec -i -t ' +
+            docker_container.name + ' /bin/bash}',
             primary_admin_gate_name='NamespaceAccess@'+docker_container.name,
             parent_container_id=MappingGear.docker_host_mco.id,
             company=company,
@@ -1110,8 +1120,8 @@ class MappingGear(InjectorGearSkeleton):
             if docker_container.mcontainer is None:
                 if docker_container.mid is None:
                     docker_container.mcontainer = ContainerService.find_container(
-                        primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/$[docker exec -i -t ' +
-                        docker_container.name + ' /bin/bash]'
+                        primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri + '/{docker exec -i -t ' +
+                        docker_container.name + ' /bin/bash}'
                     )
                     if docker_container.mcontainer is not None:
                         docker_container.mid = docker_container.mcontainer.id
@@ -1132,7 +1142,7 @@ class MappingGear(InjectorGearSkeleton):
                     if docker_container.mid is None:
                         docker_container.mcontainer = ContainerService.find_container(
                             primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri +
-                            '/$[docker exec -i -t ' + docker_container.name + ' /bin/bash]'
+                            '/{docker exec -i -t ' + docker_container.name + ' /bin/bash}'
                         )
                         if docker_container.mcontainer is not None:
                             docker_container.mid = docker_container.mcontainer.id

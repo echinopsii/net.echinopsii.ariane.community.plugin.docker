@@ -101,7 +101,7 @@ class DockerContainerProcess(object):
         self.new_map_sockets = new_map_sockets if new_map_sockets is not None else []
 
     def __str__(self):
-        return "{pid: " + str(self.pid) + " ,mdpid: " + str(self.mdpid) + \
+        return "{pid: " + str(self.pid) + ", mdpid: " + str(self.mdpid) + \
                ", mospid: " + str(self.mospid) + ", mcid: " + str(self.mcid) + "}"
 
     __repr__ = __str__
@@ -513,11 +513,48 @@ class DockerContainer(object):
                         else:
                             type_ = 'SOCK_DGRAM'
 
+                        with Namespace(self.nsented_pid, 'net'):
+                            if family == "AF_INET":
+                                proto = protocol
+                            else:
+                                proto = protocol.split('6')[0]
+                            bytes_ = subprocess.check_output(
+                                ['lsof', '-i'+proto+':'+str(source_port)]
+                            )
+
+                        tmpfilename = tempfile.gettempdir() + os.sep + self.did + '.tmp'
+                        with open(tmpfilename, 'wb') as tmpfile:
+                            tmpfile.write(bytes_)
+                            tmpfile.close()
+                        with open(tmpfilename, 'r') as tmpfile:
+                            text_lsof = tmpfile.readlines()
+                            tmpfile.close()
+                        os.remove(tmpfilename)
+
+                        file_descriptors = []
+                        for lsof_line in text_lsof:
+                            # LOGGER.warn("DockerContainer.netstat - lsof_line : " + lsof_line)
+                            lsof_fields = lsof_line.strip().split()
+                            if lsof_fields[0] != "COMMAND":
+                                # LOGGER.warn(str(lsof_fields))
+                                if target_ip is not None:
+                                    if lsof_fields[8].split(":").__len__() > 2 and \
+                                       lsof_fields[8].split(":")[2] == target_port and \
+                                       state in lsof_fields[9]:
+                                        file_descriptors.append(lsof_fields[3])
+                                        break
+                                else:
+                                    if lsof_fields[8].split(":").__len__() == 2 and \
+                                       state in lsof_fields[9]:
+                                        file_descriptors.append(lsof_fields[3])
+                                        break
+
                         ret.append({
                             'pid': pid,
                             'socket': MapSocket(source_ip=source_ip, source_port=source_port,
                                                 destination_ip=target_ip, destination_port=target_port,
-                                                status=state, family=family, rtype=type_)
+                                                file_descriptors=file_descriptors, status=state, family=family,
+                                                rtype=type_)
                         })
             else:
                 LOGGER.warning("Containers namespace sniff enabled on Linux only.")

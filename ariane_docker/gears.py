@@ -1235,15 +1235,19 @@ class DockerHostGear(InjectorGearSkeleton):
         self.to_be_sync = False
         self.sync_in_progress = False
 
-    def synchronize_with_ariane_dbs(self):
+    def synchronize_with_ariane_dbs(self, min_wait=0):
+        LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs - start - " + str(min_wait))
         self.call_from_component = True
         print_wait = True
-        LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs - start")
+        count = 0
+        while count <= min_wait:
+            time.sleep(1)
+            count += 1
         while not self.to_be_sync:
             if print_wait:
                 LOGGER.debug("DockerHostGear.synchronize_with_ariane_dbs - Waiting ariane sync order from ProcOS")
                 print_wait = False
-            time.sleep(1)
+
         self.to_be_sync = False
         self.call_from_component = False
         if not self.sync_in_progress:

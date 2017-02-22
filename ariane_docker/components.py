@@ -116,7 +116,8 @@ class DockerComponent(InjectorComponentSkeleton):
                          "(synchronize_with_ariane_dbs and self.docker_gear_actor_ref is not None) = " +
                          str(synchronize_with_ariane_dbs and self.docker_gear_actor_ref is not None))
             if synchronize_with_ariane_dbs and self.docker_gear_actor_ref is not None:
-                self.docker_gear_actor_ref.proxy().synchronize_with_ariane_dbs()
+                round_sniff_time = round(sniff_time)
+                self.docker_gear_actor_ref.proxy().synchronize_with_ariane_dbs(min_wait=round_sniff_time)
         except Exception as e:
             LOGGER.error("DockerComponent.sniff - exception raised : " + e.__str__())
             LOGGER.debug("DockerComponent.sniff - exception raised : " + traceback.format_exc())

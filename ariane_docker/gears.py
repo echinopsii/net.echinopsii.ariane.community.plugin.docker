@@ -1196,8 +1196,8 @@ class MappingGear(InjectorGearSkeleton):
                 primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri
             )
             if host_mco is not None and Container.OWNER_MAPPING_PROPERTY in host_mco.properties:
-                LOGGER.warn("host_mco.properties[owner] = " +
-                            str(host_mco.properties[Container.OWNER_MAPPING_PROPERTY]))
+                LOGGER.debug("host_mco.properties[owner] = " +
+                             str(host_mco.properties[Container.OWNER_MAPPING_PROPERTY]))
                 MappingGear.docker_host_mco = host_mco
 
         try:

@@ -567,6 +567,7 @@ class MappingGear(InjectorGearSkeleton):
                                     if mirror_map_socket.source_endpoint_id is None:
                                         container_target_url = target_url + str(mirror_map_socket.file_descriptors) + \
                                             "[" + target_local_process.pid + "]"
+                                        parent_node = None
                                         if target_local_process.mdp is None:
                                             if target_local_process.mdpid is not None and \
                                                     not target_local_process.mdpid:
@@ -684,8 +685,7 @@ class MappingGear(InjectorGearSkeleton):
                                                 LOGGER.debug("MappingGear.sync_map_socket - "
                                                              "No endpoint found for selector " + selector +
                                                              " on container " + target_container.id)
-
-                                        if target_container is None:
+                                        else:
                                             target_os_instance_type = OSTypeService.find_ostype(
                                                 ost_id=target_os_instance.ost_id
                                             )
@@ -734,15 +734,18 @@ class MappingGear(InjectorGearSkeleton):
                                 if target_endpoint is None and \
                                         Container.OWNER_MAPPING_PROPERTY not in target_container.properties:
                                     addr = target_fqdn if target_fqdn is not None else map_socket.destination_ip
-                                    node_name = addr + ':' + str(map_socket.destination_port)
-                                    LOGGER.debug("create node " + node_name + " through container " +
-                                                 target_container.id)
-                                    target_node = Node(
-                                        name=node_name,
-                                        container_id=target_container.id,
-                                        ignore_sync=True
+                                    LOGGER.debug("create node " + Container.OSI_KERNEL_PROC_NAME +
+                                                 " through container " + target_container.id)
+                                    target_node = NodeService.find_node(
+                                        name=Container.OSI_KERNEL_PROC_NAME, cid=target_container.id
                                     )
-                                    target_node.save()
+                                    if target_node is None:
+                                        target_node = Node(
+                                            name=Container.OSI_KERNEL_PROC_NAME,
+                                            container_id=target_container.id,
+                                            ignore_sync=True
+                                        )
+                                        target_node.save()
 
                                     target_endpoint = Endpoint(
                                         url=target_url, parent_node_id=target_node.id, ignore_sync=True
@@ -1179,7 +1182,7 @@ class MappingGear(InjectorGearSkeleton):
 
     def init_ariane_mapping(self, component):
         start_time = timeit.default_timer()
-        MappingGear.docker_host_mco = ContainerService.find_container(
+        host_mco = ContainerService.find_container(
             primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri
         )
         print_wait = True
@@ -1189,9 +1192,13 @@ class MappingGear(InjectorGearSkeleton):
                 LOGGER.debug("MappingGear.init_ariane_mapping - Waiting Ariane ProcOS initialization")
                 print_wait = False
             time.sleep(10)
-            MappingGear.docker_host_mco = ContainerService.find_container(
+            host_mco = ContainerService.find_container(
                 primary_admin_gate_url=DockerHostGear.docker_host_osi.admin_gate_uri
             )
+            if host_mco is not None and Container.OWNER_MAPPING_PROPERTY in host_mco.properties:
+                LOGGER.warn("host_mco.properties[owner] = " +
+                            str(host_mco.properties[Container.OWNER_MAPPING_PROPERTY]))
+                MappingGear.docker_host_mco = host_mco
 
         try:
             LOGGER.debug("MappingGear.init_ariane_mapping - init start")

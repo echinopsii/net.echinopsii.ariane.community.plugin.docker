@@ -625,21 +625,14 @@ class MappingGear(InjectorGearSkeleton):
 
                             if target_endpoint is None:
                                 target_fqdn = None
-                                try:
-                                    if map_socket.family == "AF_INET":
-                                        target_fqdn = socket.gethostbyaddr(map_socket.destination_ip)[0]
-                                    elif map_socket.family == "AF_INET6":
-                                        target_fqdn = socket.gethostbyaddr(MapSocket.ipv6_2_ipv4(
-                                            map_socket.destination_ip))[0]
-
-                                except socket.herror as e:
-                                    LOGGER.debug(str(map_socket))
-                                    LOGGER.debug(e.__str__())
-                                    LOGGER.debug(traceback.format_exc())
-                                except OSError as e:
-                                    LOGGER.debug(str(map_socket))
-                                    LOGGER.debug(e.__str__())
-                                    LOGGER.debug(traceback.format_exc())
+                                if map_socket.family == "AF_INET":
+                                    target_fqdn = MapSocket.get_cached_hostbyaddr(
+                                        map_socket.destination_ip
+                                    )
+                                elif map_socket.family == "AF_INET6":
+                                    target_fqdn = MapSocket.get_cached_hostbyaddr(
+                                        MapSocket.ipv6_2_ipv4(map_socket.destination_ip)
+                                    )
 
                                 target_container = None
 

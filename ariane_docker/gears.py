@@ -526,17 +526,18 @@ class MappingGear(InjectorGearSkeleton):
                     target_url = proto + map_socket.destination_ip + ":" + str(map_socket.destination_port)
 
                 if target_url is not None:
+                    is_dhost_local_destination = docker_container.is_local_destination(map_socket)
+                    is_in_container_destination = docker_container.is_in_container_destination(map_socket)
                     if map_socket.destination_endpoint_id is None:
                         LOGGER.debug("MappingGear.synchronize_new_map_socket - source_url: " + source_url +
                                      "; target_url: " + target_url)
-                        is_dhost_local_destination = docker_container.is_local_destination(map_socket)
                         if is_dhost_local_destination:
-                            is_in_container_destination = docker_container.is_in_container_destination(map_socket)
                             if not is_in_container_destination:
                                 selector = "endpointURL =~ '" + target_url + ".*'"
                                 endpoints = EndpointService.find_endpoint(
                                     selector=selector,
-                                    cid=MappingGear.docker_host_mco.id
+                                    cid=MappingGear.docker_host_mco.id,
+                                    local_cache=is_in_container_destination
                                 )
                                 if endpoints is not None:
                                     if endpoints.__len__() == 1:
@@ -547,8 +548,8 @@ class MappingGear(InjectorGearSkeleton):
                                                        "found for selector " + selector +
                                                        " (local). There should be one endpoint only !")
                                 else:
-                                    LOGGER.warning("MappingGear.synchronize_new_map_socket - No endpoint for selector "
-                                                   + selector + "  ?!")
+                                    LOGGER.debug("MappingGear.synchronize_new_map_socket - No endpoint for selector "
+                                                 + selector + "  ...")
                             else:
                                 target_local_process = None
                                 mirror_map_socket = None
@@ -614,7 +615,10 @@ class MappingGear(InjectorGearSkeleton):
                                                    "no mirror socket found for " + target_url)
                         else:
                             selector = "endpointURL =~ '" + target_url + ".*'"
-                            endpoints = EndpointService.find_endpoint(selector=selector)
+                            endpoints = EndpointService.find_endpoint(
+                                selector=selector,
+                                local_cache=is_in_container_destination
+                            )
                             if endpoints is not None:
                                 if endpoints.__len__() == 1:
                                     target_endpoint = endpoints[0]
@@ -665,7 +669,8 @@ class MappingGear(InjectorGearSkeleton):
                                             selector = "endpointURL =~ ':" + str(map_socket.destination_port) + ".*'"
                                             endpoints = EndpointService.find_endpoint(
                                                 selector=selector,
-                                                cid=target_container.id
+                                                cid=target_container.id,
+                                                local_cache=is_in_container_destination
                                             )
                                             if endpoints is not None and endpoints.__len__() == 1:
                                                 target_endpoint = endpoints[0]
@@ -745,7 +750,10 @@ class MappingGear(InjectorGearSkeleton):
                                     )
                                     target_endpoint.save()
                     else:
-                        target_endpoint = EndpointService.find_endpoint(map_socket.destination_endpoint_id)
+                        target_endpoint = EndpointService.find_endpoint(
+                            eid=map_socket.destination_endpoint_id,
+                            local_cache=is_in_container_destination
+                        )
 
                     if source_endpoint is None:
                         LOGGER.warning("MappingGear.synchronize_new_map_socket - Unable to define source endpoint: " +
@@ -753,8 +761,9 @@ class MappingGear(InjectorGearSkeleton):
                     else:
                         if target_endpoint is None:
                             # unable_to_define_target_ep = True
-                            LOGGER.warning("MappingGear.synchronize_new_map_socket - Unable to define target endpoint: "
-                                           + target_url)
+                            LOGGER.info("MappingGear.synchronize_new_map_socket - Unable complete map socket : " +
+                                        map_socket.source_ip + ":" + str(map_socket.source_port) + "->" +
+                                        map_socket.destination_ip + ":" + str(map_socket.destination_port))
                         else:
                             map_socket.destination_endpoint_id = target_endpoint.id
                             map_socket.destination_node_id = target_endpoint.parent_node_id

@@ -767,6 +767,10 @@ class MappingGear(InjectorGearSkeleton):
                         else:
                             map_socket.destination_endpoint_id = target_endpoint.id
                             map_socket.destination_node_id = target_endpoint.parent_node_id
+                            LOGGER.debug('map_socket completed with destination node id (' +
+                                         map_socket.destination_node_id + ') : ' +
+                                         map_socket.source_ip + ":" + str(map_socket.source_port) + "->" +
+                                         map_socket.destination_ip + ":" + str(map_socket.destination_port))
 
                             transport = Transport(name=proto)
                             if transport.id is None:
@@ -779,6 +783,7 @@ class MappingGear(InjectorGearSkeleton):
                                 link.save()
                                 map_socket.transport_id = transport.id
                                 map_socket.link_id = link.id
+                process.map_sockets.append(map_socket)
         else:
             LOGGER.warning("MappingGear.synchronize_new_map_socket - no source ip / port - " + str(map_socket))
 

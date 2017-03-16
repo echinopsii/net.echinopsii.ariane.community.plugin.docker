@@ -763,17 +763,23 @@ class DockerContainer(object):
             for pid_socket in c_net:
                 if pid_socket['pid'] == a_process.pid:
                     proc_sock = pid_socket['socket']
-                    a_process.map_sockets.append(proc_sock)
                     if proc_sock not in a_process.last_map_sockets:
+                        LOGGER.debug('Will complete new map_socket this round : ' + proc_sock.source_ip + ":" +
+                                     str(proc_sock.source_port) + "->" + str(proc_sock.destination_ip) + ":" +
+                                     str(proc_sock.destination_port))
                         a_process.new_map_sockets.append(proc_sock)
-
-            for map_socket in a_process.last_map_sockets:
-                if map_socket not in a_process.new_map_sockets and \
-                   map_socket.destination_node_id is None and \
-                   map_socket.destination_ip is not None and map_socket.destination_port is not None:
-                    LOGGER.debug('Will complete following map_socket this round : ' + map_socket.source_ip + ":" +
-                                 str(map_socket.source_port))
-                    a_process.new_map_sockets.append(map_socket)
+                    else:
+                        for map_socket in a_process.last_map_sockets:
+                            if map_socket == proc_sock:
+                                if map_socket.destination_node_id is None and \
+                                   map_socket.destination_ip is not None and \
+                                   map_socket.destination_port is not None:
+                                    LOGGER.info('Will complete incomplete map_socket this round : ' +
+                                                map_socket.source_ip + ":" + str(map_socket.source_port) + "->" +
+                                                map_socket.destination_ip + ":" + str(map_socket.destination_port))
+                                    a_process.new_map_sockets.append(map_socket)
+                                else:
+                                    a_process.map_sockets.append(map_socket)
 
         for ip_nic in c_ipnics:
             if 'ipv4_addr' in ip_nic and 'ipv4_mask' in ip_nic:
